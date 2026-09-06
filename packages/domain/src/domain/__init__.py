@@ -15,6 +15,8 @@ from domain.enums import (
     JobStatus,
     MissionSeason,
     HorizonDay,
+    MissionTargetType,
+    RouterEngineType,
 )
 from domain.coordinates import GeoPoint, BoundingBox, GridSpec
 from domain.vessel import VesselProfile, FuelConsumptionParams
@@ -24,6 +26,8 @@ from domain.mission import (
     MissionPriorities,
     PlanningWindow,
     MissionDestination,
+    MissionTarget,
+    AvoidanceZone,
 )
 from domain.environment import (
     LayerMetadata,

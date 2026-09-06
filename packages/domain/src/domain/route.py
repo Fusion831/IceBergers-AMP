@@ -22,6 +22,12 @@ class RouteWaypoint(BaseModel):
     local_sic: float = Field(default=0.0, ge=0.0, le=1.0)
     local_depth_m: Optional[float] = None
     risk_attribution: Optional[RiskFactorAttribution] = None
+    leg_distance_nm: Optional[float] = 0.0
+    cumulative_distance_nm: Optional[float] = 0.0
+    leg_fuel_tonnes: Optional[float] = 0.0
+    cumulative_fuel_tonnes: Optional[float] = 0.0
+    ice_concentration: Optional[float] = 0.0
+    bathymetry_depth_m: Optional[float] = None
 
     @model_validator(mode="after")
     def sync_waypoint(self) -> "RouteWaypoint":
@@ -38,6 +44,16 @@ class RouteWaypoint(BaseModel):
         if self.eta is None:
             self.eta = datetime.now(timezone.utc)
             self.estimated_arrival = self.eta
+
+        if self.ice_concentration and not self.local_sic:
+            self.local_sic = self.ice_concentration
+        elif self.local_sic and not self.ice_concentration:
+            self.ice_concentration = self.local_sic
+
+        if self.bathymetry_depth_m and not self.local_depth_m:
+            self.local_depth_m = self.bathymetry_depth_m
+        elif self.local_depth_m and not self.bathymetry_depth_m:
+            self.bathymetry_depth_m = self.local_depth_m
         return self
 
 
@@ -59,15 +75,36 @@ class RouteMetrics(BaseModel):
     weather_rough_seas_hours: float = Field(default=0.0, ge=0.0)
     constraint_violations: List[str] = Field(default_factory=list)
     waypoint_risks: Optional[List[float]] = None
+    estimated_fuel_tonnes: Optional[float] = None
+    mean_risk_score: Optional[float] = None
+    max_risk_score: Optional[float] = None
+    sea_ice_exposure_percent: Optional[float] = None
+    is_feasible: Optional[bool] = True
 
     @model_validator(mode="after")
     def sync_metrics(self) -> "RouteMetrics":
+        if self.estimated_fuel_tonnes is not None and self.estimated_fuel_mt == 0.0:
+            self.estimated_fuel_mt = self.estimated_fuel_tonnes
+        elif self.estimated_fuel_mt > 0.0 and self.estimated_fuel_tonnes is None:
+            self.estimated_fuel_tonnes = self.estimated_fuel_mt
+
         if self.fuel_consumption_tonnes is not None and self.estimated_fuel_mt == 0.0:
             self.estimated_fuel_mt = self.fuel_consumption_tonnes
+            self.estimated_fuel_tonnes = self.fuel_consumption_tonnes
         elif self.estimated_fuel_mt > 0.0 and self.fuel_consumption_tonnes is None:
             self.fuel_consumption_tonnes = self.estimated_fuel_mt
         elif self.fuel_consumption_tonnes is None:
             self.fuel_consumption_tonnes = self.estimated_fuel_mt
+
+        if self.mean_risk_score is not None and self.mean_risk == 0.2:
+            self.mean_risk = self.mean_risk_score
+        elif self.mean_risk != 0.2 and self.mean_risk_score is None:
+            self.mean_risk_score = self.mean_risk
+
+        if self.max_risk_score is not None and self.max_risk == 0.5:
+            self.max_risk = self.max_risk_score
+        elif self.max_risk != 0.5 and self.max_risk_score is None:
+            self.max_risk_score = self.max_risk
 
         if self.risk_p95 is not None:
             self.p95_risk = self.risk_p95
@@ -120,6 +157,10 @@ class RouteAlternative(BaseModel):
         return self
 
 
+from domain.mission import MissionTarget, AvoidanceZone
+from domain.enums import RouterEngineType
+
+
 class RouteOptimizationRequest(BaseModel):
     """Request payload to calculate optimized routes."""
     mission_id: Optional[str] = None
@@ -129,10 +170,14 @@ class RouteOptimizationRequest(BaseModel):
     vessel: Optional[VesselProfile] = None
     vessel_profile: Optional[VesselProfile] = None
     risk_weights: Optional[RiskWeightsConfig] = None
+    targets: Optional[List[MissionTarget]] = None
+    avoidance_zones: Optional[List[AvoidanceZone]] = None
+    engine: Optional[RouterEngineType] = Field(default=RouterEngineType.AMIP_CUSTOM)
     objectives: Optional[List[RouteObjective]] = Field(
         default_factory=lambda: [
-            RouteObjective.SAFEST,
+            RouteObjective.SHORTEST,
             RouteObjective.FASTEST,
+            RouteObjective.SAFEST,
             RouteObjective.FUEL_EFFICIENT,
             RouteObjective.BALANCED,
         ]
@@ -184,6 +229,7 @@ class RouteOptimizationResponse(BaseModel):
 class RouteComparison(BaseModel):
     """Side-by-side evaluation comparison of generated route alternatives."""
     routes: List[RouteAlternative]
+    shortest_route_id: Optional[str] = None
     fastest_route_id: str
     most_fuel_efficient_route_id: str
     safest_route_id: str

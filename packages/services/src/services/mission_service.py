@@ -66,6 +66,8 @@ class MissionService:
             vessel_profile=create_dto.vessel_profile or VesselProfile(),
             planning_window=create_dto.planning_window,
             destinations=create_dto.destinations,
+            targets=create_dto.targets,
+            avoidance_zones=create_dto.avoidance_zones,
             priorities=create_dto.priorities,
             status=MissionStatus.DRAFT,
             created_at=datetime.now(timezone.utc),
@@ -96,16 +98,19 @@ class MissionService:
         primary_dest = mission.destinations[0]
 
         # 1. Environment & Risk are computed inside routing_service and analysis_service
-        # 2. Run Route Optimization across 4 objectives: SAFEST, FASTEST, FUEL_EFFICIENT, BALANCED
+        # 2. Run Route Optimization across 5 objectives: SHORTEST, FASTEST, SAFEST, FUEL_EFFICIENT, BALANCED
         opt_request = RouteOptimizationRequest(
             origin=mission.origin or primary_dest.entry_corridor,
             destination=primary_dest.location,
             departure_time=departure_time,
             vessel_profile=vessel,
+            targets=mission.targets,
+            avoidance_zones=mission.avoidance_zones,
             risk_weights=None,
             objectives=[
-                RouteObjective.SAFEST,
+                RouteObjective.SHORTEST,
                 RouteObjective.FASTEST,
+                RouteObjective.SAFEST,
                 RouteObjective.FUEL_EFFICIENT,
                 RouteObjective.BALANCED,
             ],

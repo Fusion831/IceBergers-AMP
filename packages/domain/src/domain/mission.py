@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 from uuid import uuid4
 from pydantic import BaseModel, Field, model_validator
 from domain.coordinates import GeoPoint
-from domain.enums import MissionStatus, MissionSeason
+from domain.enums import MissionStatus, MissionSeason, MissionTargetType
 from domain.vessel import VesselProfile
 
 
@@ -41,6 +41,28 @@ class PlanningWindow(BaseModel):
 
 
 from datetime import timedelta
+
+
+class AvoidanceZone(BaseModel):
+    """User-defined or system-generated exclusion zone (calving fronts, marine sanctuaries, etc.)."""
+    id: str = Field(default_factory=lambda: f"az-{uuid4().hex[:6]}")
+    name: str
+    polygon: Optional[List[GeoPoint]] = None
+    center: Optional[GeoPoint] = None
+    radius_km: Optional[float] = 25.0
+    reason: Optional[str] = "Hazard avoidance"
+
+
+class MissionTarget(BaseModel):
+    """A destination, science survey site, selected grid cell, or waypoint."""
+    id: str = Field(default_factory=lambda: f"tgt-{uuid4().hex[:6]}")
+    name: str
+    target_type: MissionTargetType = MissionTargetType.STATION
+    location: GeoPoint
+    grid_cell_id: Optional[str] = None  # e.g., "S17", "S42"
+    dwell_hours: float = Field(default=0.0, ge=0.0)
+    survey_speed_knots: Optional[float] = None
+    sequence_order: Optional[int] = None
 
 
 class MissionDestination(BaseModel):
@@ -87,6 +109,8 @@ class MissionCreate(BaseModel):
     vessel_id: Optional[str] = Field(default="vessel-orv-sagar-kanya")
     vessel_profile: Optional[VesselProfile] = Field(default_factory=VesselProfile)
     priorities: MissionPriorities = Field(default_factory=MissionPriorities)
+    targets: Optional[List[MissionTarget]] = Field(default=None)
+    avoidance_zones: Optional[List[AvoidanceZone]] = Field(default=None)
 
 
 class Mission(BaseModel):
@@ -105,6 +129,8 @@ class Mission(BaseModel):
     vessel_id: Optional[str] = "vessel-orv-sagar-kanya"
     vessel_profile: Optional[VesselProfile] = Field(default_factory=VesselProfile)
     priorities: MissionPriorities = Field(default_factory=MissionPriorities)
+    targets: Optional[List[MissionTarget]] = None
+    avoidance_zones: Optional[List[AvoidanceZone]] = None
     status: MissionStatus = Field(default=MissionStatus.DRAFT)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

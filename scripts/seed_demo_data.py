@@ -16,8 +16,8 @@ from datetime import datetime, timezone, timedelta
 
 from domain.coordinates import GeoPoint
 from domain.vessel import VesselProfile
-from domain.mission import MissionCreate, PlanningWindow, MissionDestination, MissionPriorities
-from domain.enums import MissionSeason
+from domain.mission import MissionCreate, PlanningWindow, MissionDestination, MissionPriorities, MissionTarget, AvoidanceZone
+from domain.enums import MissionSeason, MissionTargetType
 from services.mission_service import MissionService
 
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +35,7 @@ def seed() -> None:
         name="45th Indian Scientific Expedition to Antarctica (ISEA-45)",
         expedition_code="ISEA-45-DEMO",
         season=MissionSeason.SUMMER_2026,
-        description="Benchmark demonstration expedition from Cape Town staging corridor to Bharati and Maitri.",
+        description="Multi-target expedition from Cape Town to Bharati, Prydz Bay science site, Grid Cell S17, and Maitri.",
         vessel_profile=vessel,
         planning_window=PlanningWindow(
             earliest_departure=now,
@@ -57,6 +57,45 @@ def seed() -> None:
                 min_stay_days=14,
                 preferred_arrival=now + timedelta(days=35),
             ),
+        ],
+        targets=[
+            MissionTarget(
+                name="Bharati Station Logistics Point",
+                target_type=MissionTargetType.STATION,
+                location=GeoPoint(latitude=-69.4072, longitude=76.1911, name="Bharati Station"),
+                dwell_hours=48.0,
+                sequence_order=1,
+            ),
+            MissionTarget(
+                name="Prydz Bay Science Survey",
+                target_type=MissionTargetType.SCIENCE_SITE,
+                location=GeoPoint(latitude=-68.2, longitude=74.5, name="Science Area Alpha"),
+                dwell_hours=24.0,
+                sequence_order=2,
+            ),
+            MissionTarget(
+                name="Satellite Sea-Ice Ground Truth Cell S17",
+                target_type=MissionTargetType.GRID_CELL,
+                grid_cell_id="S17",
+                location=GeoPoint(latitude=-67.8, longitude=70.0, name="Grid Cell S17"),
+                dwell_hours=12.0,
+                sequence_order=3,
+            ),
+            MissionTarget(
+                name="Maitri Station Access Corridor",
+                target_type=MissionTargetType.STATION,
+                location=GeoPoint(latitude=-70.7670, longitude=11.7330, name="Maitri Station"),
+                dwell_hours=72.0,
+                sequence_order=4,
+            ),
+        ],
+        avoidance_zones=[
+            AvoidanceZone(
+                name="Bouvet Iceberg Calving Hazard Zone",
+                center=GeoPoint(latitude=-54.4, longitude=3.4),
+                radius_km=45.0,
+                reason="Active tabular iceberg calving front and grounding shoals",
+            )
         ],
         priorities=MissionPriorities(safety=0.40, fuel=0.30, time=0.20, science=0.10),
     )

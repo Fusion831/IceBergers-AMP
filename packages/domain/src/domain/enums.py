@@ -3,10 +3,24 @@ from enum import Enum, IntEnum
 
 
 class RouteObjective(str, Enum):
+    SHORTEST = "SHORTEST"
     SAFEST = "SAFEST"
     FASTEST = "FASTEST"
     FUEL_EFFICIENT = "FUEL_EFFICIENT"
     BALANCED = "BALANCED"
+
+
+class MissionTargetType(str, Enum):
+    PORT = "PORT"
+    STATION = "STATION"
+    SCIENCE_SITE = "SCIENCE_SITE"
+    GRID_CELL = "GRID_CELL"
+    WAYPOINT = "WAYPOINT"
+
+
+class RouterEngineType(str, Enum):
+    AMIP_CUSTOM = "AMIP_CUSTOM"
+    POLAR_ROUTE = "POLAR_ROUTE"
 
 
 class IceClass(str, Enum):

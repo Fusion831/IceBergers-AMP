@@ -24,6 +24,11 @@ from core.errors import NotFoundError, RoutingError
 logger = logging.getLogger(__name__)
 
 
+from routing.amip_custom_router import AMIPCustomRouter
+from routing.mission_planner import MissionPlanner
+from domain.enums import RouterEngineType
+
+
 class RoutingService:
     """Service for generating, validating, and comparing route alternatives."""
 
@@ -32,10 +37,14 @@ class RoutingService:
         optimizer: Optional[RouteOptimizerInterface] = None,
         validator: Optional[RouteValidatorInterface] = None,
         risk_service: Optional[RiskService] = None,
+        custom_router: Optional[AMIPCustomRouter] = None,
+        mission_planner: Optional[MissionPlanner] = None,
     ) -> None:
         self.optimizer = optimizer or MockRouteOptimizer()
         self.validator = validator or RouteValidator()
         self.risk_service = risk_service or RiskService()
+        self.custom_router = custom_router or AMIPCustomRouter()
+        self.mission_planner = mission_planner or MissionPlanner(self.custom_router)
         self._route_cache: Dict[str, RouteAlternative] = {}
 
     def optimize_routes(
@@ -53,46 +62,62 @@ class RoutingService:
             weights=request.risk_weights,
         )
 
-        # 2. Generate route alternatives using optimizer interface
-        routes: List[RouteAlternative] = []
-        objectives = request.objectives or [
-            RouteObjective.SAFEST,
-            RouteObjective.FASTEST,
-            RouteObjective.FUEL_EFFICIENT,
-            RouteObjective.BALANCED,
-        ]
-
-        for obj in objectives:
-            alt = self.optimizer.optimize(
-                start=request.origin,
+        # 2. Check if multi-target mission
+        if request.targets and len(request.targets) > 1:
+            routes: List[RouteAlternative] = []
+            objectives = request.objectives or [
+                RouteObjective.SHORTEST,
+                RouteObjective.FASTEST,
+                RouteObjective.SAFEST,
+                RouteObjective.FUEL_EFFICIENT,
+                RouteObjective.BALANCED,
+            ]
+            for obj in objectives:
+                alt = self.mission_planner.plan_multi_target_mission(
+                    origin=request.origin,
+                    targets=request.targets,
+                    departure_time=start_time,
+                    vessel=vessel,
+                    objective=obj,
+                    avoidance_zones=request.avoidance_zones,
+                )
+                routes.append(alt)
+                self._route_cache[alt.route_id] = alt
+        else:
+            # Single origin-destination leg
+            objectives = request.objectives or [
+                RouteObjective.SHORTEST,
+                RouteObjective.FASTEST,
+                RouteObjective.SAFEST,
+                RouteObjective.FUEL_EFFICIENT,
+                RouteObjective.BALANCED,
+            ]
+            routes = self.custom_router.optimize_all_alternatives(
+                origin=request.origin,
                 destination=request.destination,
-                start_time=start_time,
-                objective=obj,
+                departure_time=start_time,
                 vessel=vessel,
-                risk_field=risk_field,
-                risk_weights=request.risk_weights,
+                objectives=objectives,
+                avoidance_zones=request.avoidance_zones,
+                intermediate_targets=request.targets,
             )
+            for alt in routes:
+                # 3. Perform 4D spatio-temporal route validation
+                val_summary = self.validator.validate_route(
+                    route=alt,
+                    risk_field=risk_field,
+                    vessel=vessel,
+                )
+                alt.metrics.mean_risk = val_summary.mean_risk
+                alt.metrics.max_risk = val_summary.max_risk
+                alt.metrics.risk_p95 = val_summary.p95_risk
+                alt.metrics.risk_p99 = val_summary.p99_risk
+                alt.metrics.ice_exposure_nm = val_summary.sea_ice_exposure_nm
+                alt.metrics.iceberg_exposure_nm = val_summary.iceberg_hazard_exposure_nm
+                alt.metrics.constraint_violations = val_summary.constraint_violations
+                self._route_cache[alt.route_id] = alt
 
-            # 3. Perform 4D spatio-temporal route validation
-            val_summary = self.validator.validate_route(
-                route=alt,
-                risk_field=risk_field,
-                vessel=vessel,
-            )
-
-            # Update metrics with validated 4D risk metrics
-            alt.metrics.mean_risk = val_summary.mean_risk
-            alt.metrics.max_risk = val_summary.max_risk
-            alt.metrics.risk_p95 = val_summary.p95_risk
-            alt.metrics.risk_p99 = val_summary.p99_risk
-            alt.metrics.ice_exposure_nm = val_summary.sea_ice_exposure_nm
-            alt.metrics.iceberg_exposure_nm = val_summary.iceberg_hazard_exposure_nm
-            alt.metrics.constraint_violations = val_summary.constraint_violations
-
-            routes.append(alt)
-            self._route_cache[alt.route_id] = alt
-
-        # 4. Recommend the best route (default BALANCED, or lowest total score)
+        # 4. Recommend best route (default BALANCED)
         recommended = routes[0]
         for r in routes:
             if r.objective == RouteObjective.BALANCED:
@@ -123,19 +148,21 @@ class RoutingService:
         if not routes:
             raise RoutingError("No valid routes provided for comparison.")
 
-        # Rank by duration, fuel, and risk
+        # Rank by distance, duration, fuel, and risk
+        shortest = min(routes, key=lambda r: r.metrics.distance_nm).route_id
         fastest = min(routes, key=lambda r: r.metrics.duration_hours).route_id
         most_efficient = min(routes, key=lambda r: r.metrics.fuel_consumption_tonnes).route_id
         safest = min(routes, key=lambda r: r.metrics.mean_risk).route_id
 
         summary = (
             f"Compared {len(routes)} alternatives. "
-            f"Fastest route is {fastest}, most fuel efficient is {most_efficient}, "
-            f"and safest route is {safest}."
+            f"Shortest route is {shortest}, fastest route is {fastest}, "
+            f"most fuel efficient is {most_efficient}, and safest route is {safest}."
         )
 
         return RouteComparison(
             routes=routes,
+            shortest_route_id=shortest,
             fastest_route_id=fastest,
             most_fuel_efficient_route_id=most_efficient,
             safest_route_id=safest,

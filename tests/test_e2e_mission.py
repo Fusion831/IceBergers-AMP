@@ -24,11 +24,12 @@ def test_complete_mission_lifecycle_e2e(sample_mission_create: MissionCreate):
     analysis_resp = mission_service.analyze_mission(mission.id)
     assert analysis_resp["status"] == MissionStatus.ANALYZED.value
     assert "routes" in analysis_resp
-    assert len(analysis_resp["routes"]) == 4
+    assert len(analysis_resp["routes"]) == 5
 
-    # 3. Verify 4 distinct route alternatives
+    # 3. Verify 5 distinct route alternatives
     routes = analysis_resp["routes"]
     objectives_found = {r["objective"] for r in routes}
+    assert RouteObjective.SHORTEST.value in objectives_found
     assert RouteObjective.SAFEST.value in objectives_found
     assert RouteObjective.FASTEST.value in objectives_found
     assert RouteObjective.FUEL_EFFICIENT.value in objectives_found
@@ -66,4 +67,4 @@ def test_complete_mission_lifecycle_e2e(sample_mission_create: MissionCreate):
     # 8. Verify get_mission_analysis retrieval
     cached = mission_service.get_mission_analysis(mission.id)
     assert cached["mission_id"] == mission.id
-    assert len(cached["routes"]) == 4
+    assert len(cached["routes"]) == 5

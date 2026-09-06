@@ -34,12 +34,12 @@ async def test_api_missions_workflow(sample_mission_create):
         resp = await ac.post(f"/api/v1/missions/{mission_id}/analyze")
         assert resp.status_code == 200
         analysis_data = resp.json()
-        assert len(analysis_data["routes"]) == 4
+        assert len(analysis_data["routes"]) == 5
 
         # 4. Get Analysis
         resp = await ac.get(f"/api/v1/missions/{mission_id}/analysis")
         assert resp.status_code == 200
-        assert len(resp.json()["routes"]) == 4
+        assert len(resp.json()["routes"]) == 5
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_api_routes():
         resp = await ac.post("/api/v1/routes/optimize", json=opt_req)
         assert resp.status_code == 200
         routes = resp.json()["routes"]
-        assert len(routes) == 4
+        assert len(routes) == 5
 
         # Compare
         comp_req = {"route_ids": [r["route_id"] for r in routes]}
