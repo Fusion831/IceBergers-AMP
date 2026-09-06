@@ -96,26 +96,26 @@ class ZarrReader:
             depth[lat_grid < -72.0] = -50.0  # Land / ice shelf elevation above sea level
             return depth
 
-        elif variable in ("wind_u", "u10"):
+        elif variable in ("wind_u", "u10", "wind_u10"):
             # Strong westerly winds between -40S and -60S (Roaring Forties)
             peak_westerly = 14.0 + 4.0 * seasonal_phase
             return peak_westerly * np.exp(-0.5 * ((lat_grid + 50.0) / 8.0) ** 2)
 
-        elif variable in ("wind_v", "v10"):
+        elif variable in ("wind_v", "v10", "wind_v10"):
             # Meridional wind component with cyclonic perturbations
             return 3.0 * np.sin(np.radians(lon_grid * 3.0))
 
-        elif variable in ("ocean_u", "uC"):
+        elif variable in ("ocean_u", "uC", "ocean_current_u"):
             # Antarctic Circumpolar Current (ACC) flowing east (~0.3 to 0.5 m/s) at -50S
             acc = 0.45 * np.exp(-0.5 * ((lat_grid + 52.0) / 6.0) ** 2)
             # Coastal current flowing west (-0.15 m/s) near -68S
             coastal = -0.20 * np.exp(-0.5 * ((lat_grid + 68.0) / 2.0) ** 2)
             return acc + coastal
 
-        elif variable in ("ocean_v", "vC"):
+        elif variable in ("ocean_v", "vC", "ocean_current_v"):
             return 0.05 * np.cos(np.radians(lon_grid * 2.0))
 
-        elif variable in ("significant_wave_height", "wave_hs"):
+        elif variable in ("significant_wave_height", "wave_hs", "wave_height"):
             # Wave height peaks in the Southern Ocean belt
             return 3.5 + 2.0 * np.exp(-0.5 * ((lat_grid + 52.0) / 7.0) ** 2)
 
