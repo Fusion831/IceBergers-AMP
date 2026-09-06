@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amip-backend"
+version = "0.1.0"
+description = "Antarctic Mission Intelligence Platform (AMIP) POC Backend"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "sqlalchemy>=2.0.28",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.20.0",
+    "geoalchemy2>=0.14.4",
+    "shapely>=2.0.3",
+    "pyproj>=3.6.1",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "xarray>=2024.2.0",
+    "zarr>=2.17.0",
+    "redis>=5.0.2",
+    "celery>=5.3.6",
+    "structlog>=24.1.0",
+    "httpx>=0.27.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = [
+    "apps/backend/src",
+    "packages/core/src",
+    "packages/domain/src",
+    "packages/data_access/src",
+    "packages/models/src",
+    "packages/iceberg_physics/src",
+    "packages/risk_engine/src",
+    "packages/routing/src",
+    "packages/services/src"
+]

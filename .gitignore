@@ -1,0 +1,30 @@
+# Environment & Dependencies
+.venv/
+env/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data & artifacts (keep demo data, ignore large processed caches)
+data/processed/*.zarr
+data/raw/*
+!data/demo/
+
+# Environment Variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# PRD
+NCPOR_26059_AMIP_POC_PRD.md

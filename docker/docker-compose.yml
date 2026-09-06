@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  postgis:
+    image: postgis/postgis:15-3.3-alpine
+    container_name: amip-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: amip
+      POSTGRES_USER: amip_user
+      POSTGRES_PASSWORD: amip_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./postgis-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amip_user -d amip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: amip-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: amip-backend
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - MOCK_MODE=true
+      - DATABASE_URL=postgresql+asyncpg://amip_user:amip_password@postgis:5432/amip
+      - REDIS_URL=redis://redis:6379/0
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../packages:/app/packages
+      - ../apps:/app/apps
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: amip-worker
+    restart: unless-stopped
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - MOCK_MODE=true
+      - DATABASE_URL=postgresql+asyncpg://amip_user:amip_password@postgis:5432/amip
+      - REDIS_URL=redis://redis:6379/0
+
+volumes:
+  postgis_data:
+  redis_data:
