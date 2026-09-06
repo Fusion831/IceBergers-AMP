@@ -10,8 +10,6 @@ from domain.coordinates import BoundingBox, GridSpec
 from domain.sea_ice import SeaIcePredictionResult, BaselineComparison
 from domain.enums import HorizonDay
 from domain.provenance import ModelRunRecord
-from models.base import SeaIceModelInterface
-from models.registry import ModelRegistry
 from models.sea_ice.mock_model import MockSeaIceModel
 from models.sea_ice.baselines import PersistenceBaseline, ClimatologyBaseline, compute_baseline_comparison
 
@@ -23,11 +21,9 @@ class SeaIceService:
 
     def __init__(
         self,
-        model_registry: Optional[ModelRegistry] = None,
-        default_model_id: str = "mock-sea-ice-unet",
+        model: Optional[MockSeaIceModel] = None,
     ) -> None:
-        self.registry = model_registry or ModelRegistry()
-        self.default_model_id = default_model_id
+        self.model = model or MockSeaIceModel()
         self.persistence = PersistenceBaseline()
         self.climatology = ClimatologyBaseline()
 
@@ -40,8 +36,7 @@ class SeaIceService:
         model_id: Optional[str] = None,
     ) -> SeaIcePredictionResult:
         """Run sea-ice forecast for a given reference time and horizon."""
-        model = self.registry.get_model(model_id or self.default_model_id)
-        prediction = model.predict(
+        prediction = self.model.predict(
             reference_time=reference_time,
             horizon_days=horizon_days,
             bbox=bbox,
@@ -57,7 +52,7 @@ class SeaIceService:
         grid_spec: Optional[GridSpec] = None,
     ) -> Dict[str, Any]:
         """Compute forecast along with persistence and climatology baselines."""
-        model = self.registry.get_model(self.default_model_id)
+        model = self.model
         forecast = model.predict(reference_time, horizon_days, bbox, grid_spec)
         persistence = self.persistence.predict(reference_time, horizon_days, bbox, grid_spec)
         climatology = self.climatology.predict(reference_time, horizon_days, bbox, grid_spec)

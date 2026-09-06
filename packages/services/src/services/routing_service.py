@@ -15,18 +15,14 @@ from domain.route import (
     RouteAlternative,
     RouteComparison,
 )
-from routing.interface import RouteOptimizerInterface, RouteValidatorInterface
-from routing.mock_optimizer import MockRouteOptimizer
 from routing.validator import RouteValidator
-from services.risk_service import RiskService
-from core.errors import NotFoundError, RoutingError
-
-logger = logging.getLogger(__name__)
-
-
 from routing.amip_custom_router import AMIPCustomRouter
 from routing.mission_planner import MissionPlanner
+from services.risk_service import RiskService
+from core.errors import NotFoundError, RoutingError
 from domain.enums import RouterEngineType
+
+logger = logging.getLogger(__name__)
 
 
 class RoutingService:
@@ -34,17 +30,17 @@ class RoutingService:
 
     def __init__(
         self,
-        optimizer: Optional[RouteOptimizerInterface] = None,
-        validator: Optional[RouteValidatorInterface] = None,
-        risk_service: Optional[RiskService] = None,
         custom_router: Optional[AMIPCustomRouter] = None,
+        validator: Optional[RouteValidator] = None,
+        risk_service: Optional[RiskService] = None,
         mission_planner: Optional[MissionPlanner] = None,
+        optimizer: Optional[Any] = None,
     ) -> None:
-        self.optimizer = optimizer or MockRouteOptimizer()
+        self.custom_router = custom_router or AMIPCustomRouter()
         self.validator = validator or RouteValidator()
         self.risk_service = risk_service or RiskService()
-        self.custom_router = custom_router or AMIPCustomRouter()
         self.mission_planner = mission_planner or MissionPlanner(self.custom_router)
+        self.optimizer = optimizer or self.custom_router
         self._route_cache: Dict[str, RouteAlternative] = {}
 
     def optimize_routes(

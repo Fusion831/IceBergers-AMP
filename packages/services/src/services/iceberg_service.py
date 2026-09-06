@@ -14,7 +14,6 @@ from domain.iceberg import (
     IcebergSizeClass,
 )
 from domain.enums import HorizonDay
-from iceberg_physics.interface import IcebergDriftEngineInterface, IcebergHazardGeneratorInterface
 from iceberg_physics.mock_drift import MockIcebergDriftEngine
 from iceberg_physics.hazard_generator import IcebergHazardGenerator
 from core.errors import NotFoundError
@@ -88,8 +87,8 @@ class IcebergService:
 
     def __init__(
         self,
-        drift_engine: Optional[IcebergDriftEngineInterface] = None,
-        hazard_generator: Optional[IcebergHazardGeneratorInterface] = None,
+        drift_engine: Optional[MockIcebergDriftEngine] = None,
+        hazard_generator: Optional[IcebergHazardGenerator] = None,
     ) -> None:
         self.drift_engine = drift_engine or MockIcebergDriftEngine()
         self.hazard_generator = hazard_generator or IcebergHazardGenerator()

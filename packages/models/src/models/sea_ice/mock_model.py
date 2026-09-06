@@ -10,11 +10,10 @@ from domain.sea_ice import (
     SeaIceUncertainty,
     SeaIcePredictionResult,
 )
-from models.base import SeaIceModelInterface
 from data_access.zarr_reader import default_zarr_reader
 
 
-class MockSeaIceModel(SeaIceModelInterface):
+class MockSeaIceModel:
     """
     Deterministic mock sea-ice forecasting model.
     Produces spatially and temporally coherent Antarctic SIC grids and uncertainty bounds.

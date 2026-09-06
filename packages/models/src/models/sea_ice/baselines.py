@@ -11,11 +11,10 @@ from domain.sea_ice import (
     SeaIceSkillMetrics,
     BaselineComparison,
 )
-from models.base import SeaIceModelInterface
 from data_access.zarr_reader import default_zarr_reader
 
 
-class PersistenceBaseline(SeaIceModelInterface):
+class PersistenceBaseline:
     """Persistence baseline: assumes future sea ice equals current observed state."""
 
     @property
@@ -86,7 +85,7 @@ class PersistenceBaseline(SeaIceModelInterface):
         }
 
 
-class ClimatologyBaseline(SeaIceModelInterface):
+class ClimatologyBaseline:
     """Climatological baseline based on 30-year multi-satellite passive microwave mean."""
 
     @property

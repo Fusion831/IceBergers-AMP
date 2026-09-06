@@ -10,11 +10,10 @@ from domain.iceberg import (
     IcebergTrajectoryStep,
     IcebergTrajectoryEnsemble,
 )
-from iceberg_physics.interface import IcebergDriftEngineInterface
 from data_access.zarr_reader import default_zarr_reader
 
 
-class MockIcebergDriftEngine(IcebergDriftEngineInterface):
+class MockIcebergDriftEngine:
     """
     Deterministic Lagrangian drift simulator.
     Simulates iceberg advection under ocean currents, wind drag, and Coriolis effects.

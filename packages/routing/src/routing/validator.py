@@ -5,8 +5,6 @@ import numpy as np
 from pydantic import BaseModel, Field
 from domain.route import RouteAlternative, RouteMetrics
 from domain.vessel import VesselProfile
-from risk_engine.interface import RiskEngineInterface
-from routing.interface import RouteValidatorInterface
 
 
 class RouteValidationSummary(BaseModel):
@@ -22,7 +20,7 @@ class RouteValidationSummary(BaseModel):
     constraint_violations: List[str] = Field(default_factory=list)
 
 
-class RouteValidator(RouteValidatorInterface):
+class RouteValidator:
     """
     Evaluates candidate routes against evolving 4D environmental hazards R(x, y, t).
     Inspects conditions at each waypoint according to its dynamic ETA.
@@ -33,7 +31,7 @@ class RouteValidator(RouteValidatorInterface):
         route: RouteAlternative,
         risk_field: Any = None,
         vessel: Optional[VesselProfile] = None,
-        risk_engine: Optional[RiskEngineInterface] = None,
+        risk_engine: Optional[Any] = None,
     ) -> RouteValidationSummary:
         """Validate route against 4D spatiotemporal risk surface."""
         all_risks: List[float] = []
@@ -76,7 +74,7 @@ class RouteValidator(RouteValidatorInterface):
         self,
         route: RouteAlternative,
         vessel: VesselProfile,
-        risk_engine: RiskEngineInterface,
+        risk_engine: Optional[Any] = None,
     ) -> RouteMetrics:
         summary = self.validate_route(route, None, vessel, risk_engine)
         return RouteMetrics(

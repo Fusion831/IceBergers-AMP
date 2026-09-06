@@ -5,13 +5,12 @@ import numpy as np
 from domain.coordinates import BoundingBox, GridSpec, GeoPoint
 from domain.risk import RiskField, RiskWeightsConfig, RiskFactorAttribution
 from domain.vessel import VesselProfile
-from risk_engine.interface import RiskEngineInterface
 from risk_engine.constraints import evaluate_hard_constraints
 from risk_engine.soft_costs import compute_soft_risk_factors, combine_risk_field
 from data_access.zarr_reader import default_zarr_reader
 
 
-class RiskEngine(RiskEngineInterface):
+class RiskEngine:
     """
     Deterministic Environmental Risk Engine.
     Fuses sea ice, iceberg hazard, wind, waves, currents, and bathymetry into R(x, y, t).

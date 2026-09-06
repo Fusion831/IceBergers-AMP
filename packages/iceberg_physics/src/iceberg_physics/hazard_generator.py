@@ -8,7 +8,6 @@ from domain.iceberg import (
     IcebergTrajectoryEnsemble,
     IcebergHazardField,
 )
-from iceberg_physics.interface import IcebergHazardGeneratorInterface
 from data_access.spatial import haversine_distance_km
 
 
@@ -21,7 +20,7 @@ class HazardFieldResult(IcebergHazardField):
         return iter((self, mat))
 
 
-class IcebergHazardGenerator(IcebergHazardGeneratorInterface):
+class IcebergHazardGenerator:
     """
     Converts simulated trajectory ensembles into a continuous 2D collision hazard surface H(x, y, t).
     The resulting spatial hazard surface dynamically propagates forward in lockstep with the trajectories.

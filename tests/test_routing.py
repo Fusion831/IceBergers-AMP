@@ -6,7 +6,7 @@ from domain.coordinates import GeoPoint, BoundingBox, GridSpec
 from domain.vessel import VesselProfile
 from domain.enums import RouteObjective
 from routing.fuel_model import NavalArchitectureFuelModel
-from routing.mock_optimizer import MockRouteOptimizer
+from routing.amip_custom_router import AMIPCustomRouter
 from routing.validator import RouteValidator
 from services.risk_service import RiskService
 
@@ -37,20 +37,17 @@ def test_naval_fuel_model(sample_vessel: VesselProfile):
 
 
 def test_four_distinct_routes_generated(sample_vessel: VesselProfile):
-    optimizer = MockRouteOptimizer()
-    risk_service = RiskService()
+    router = AMIPCustomRouter()
     start_time = datetime(2026, 1, 15, 0, 0, tzinfo=timezone.utc)
 
     # Transect from southern ocean corridor towards Bharati
     start = GeoPoint(latitude=-55.0, longitude=65.0)
     dest = GeoPoint(latitude=-69.4, longitude=76.2)
 
-    risk_field = risk_service.get_risk_field(valid_time=start_time, vessel=sample_vessel)
-
-    r_safest = optimizer.optimize(start, dest, start_time, RouteObjective.SAFEST, sample_vessel, risk_field)
-    r_fastest = optimizer.optimize(start, dest, start_time, RouteObjective.FASTEST, sample_vessel, risk_field)
-    r_fuel = optimizer.optimize(start, dest, start_time, RouteObjective.FUEL_EFFICIENT, sample_vessel, risk_field)
-    r_balanced = optimizer.optimize(start, dest, start_time, RouteObjective.BALANCED, sample_vessel, risk_field)
+    r_safest = router.optimize_leg(start, dest, start_time, sample_vessel, RouteObjective.SAFEST)
+    r_fastest = router.optimize_leg(start, dest, start_time, sample_vessel, RouteObjective.FASTEST)
+    r_fuel = router.optimize_leg(start, dest, start_time, sample_vessel, RouteObjective.FUEL_EFFICIENT)
+    r_balanced = router.optimize_leg(start, dest, start_time, sample_vessel, RouteObjective.BALANCED)
 
     # 1. Geometries must be genuinely distinct!
     coords_safest = [(wp.point.latitude, wp.point.longitude) for wp in r_safest.waypoints]
@@ -69,7 +66,7 @@ def test_four_distinct_routes_generated(sample_vessel: VesselProfile):
 
 
 def test_4d_route_validator(sample_vessel: VesselProfile):
-    optimizer = MockRouteOptimizer()
+    router = AMIPCustomRouter()
     validator = RouteValidator()
     risk_service = RiskService()
     start_time = datetime(2026, 1, 15, 0, 0, tzinfo=timezone.utc)
@@ -78,7 +75,7 @@ def test_4d_route_validator(sample_vessel: VesselProfile):
     dest = GeoPoint(latitude=-69.4, longitude=76.2)
 
     risk_field = risk_service.get_risk_field(valid_time=start_time, vessel=sample_vessel)
-    route = optimizer.optimize(start, dest, start_time, RouteObjective.BALANCED, sample_vessel, risk_field)
+    route = router.optimize_leg(start, dest, start_time, sample_vessel, RouteObjective.BALANCED)
 
     summary = validator.validate_route(route, risk_field, sample_vessel)
 

@@ -12,7 +12,6 @@ from domain.risk import RiskWeightsConfig, RiskField, RiskFactorAttribution
 from domain.environment import GridSlice
 from domain.iceberg import IcebergHazardField
 from domain.sea_ice import SeaIcePredictionResult
-from risk_engine.interface import RiskEngineInterface
 from risk_engine.engine import RiskEngine
 from services.environment_service import EnvironmentService
 from services.sea_ice_service import SeaIceService
@@ -26,7 +25,7 @@ class RiskService:
 
     def __init__(
         self,
-        risk_engine: Optional[RiskEngineInterface] = None,
+        risk_engine: Optional[RiskEngine] = None,
         env_service: Optional[EnvironmentService] = None,
         sea_ice_service: Optional[SeaIceService] = None,
         iceberg_service: Optional[IcebergService] = None,
