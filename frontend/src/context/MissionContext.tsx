@@ -203,6 +203,9 @@ interface MissionContextType {
   setShowRoutes: React.Dispatch<React.SetStateAction<boolean>>;
   showAlternativeRoutes: boolean;
   setShowAlternativeRoutes: React.Dispatch<React.SetStateAction<boolean>>;
+  enabledRoutes: Record<string, boolean>;
+  setEnabledRoutes: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  toggleRouteEnabled: (routeId: string) => void;
   isPlaying: boolean;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   togglePlay: () => void;
@@ -243,7 +246,21 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [showH3Grid, setShowH3Grid] = useState<boolean>(true);
   const [showRoutes, setShowRoutes] = useState<boolean>(true);
   const [showAlternativeRoutes, setShowAlternativeRoutes] = useState<boolean>(true);
+  const [enabledRoutes, setEnabledRoutes] = useState<Record<string, boolean>>({
+    fastest: true,
+    shortest: true,
+    safest: true,
+    fuel_efficient: true,
+    balanced: true
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  const toggleRouteEnabled = (routeId: string) => {
+    setEnabledRoutes((prev) => ({
+      ...prev,
+      [routeId]: prev[routeId] === false ? true : false
+    }));
+  };
 
   // Inspector states
   const [selectedH3Cell, setSelectedH3Cell] = useState<any | null>(null);
@@ -312,6 +329,9 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setShowRoutes,
         showAlternativeRoutes,
         setShowAlternativeRoutes,
+        enabledRoutes,
+        setEnabledRoutes,
+        toggleRouteEnabled,
         isPlaying,
         setIsPlaying,
         togglePlay,

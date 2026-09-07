@@ -5,6 +5,7 @@ import { AntarcticMap } from './components/AntarcticMap';
 import { MissionPlanDrawer } from './components/MissionPlanDrawer';
 import { RouteDetailsDrawer } from './components/RouteDetailsDrawer';
 import { MapLayersMenu } from './components/MapLayersMenu';
+import { PathRiskVisualizer } from './components/PathRiskVisualizer';
 
 function MainWorkstation() {
   const {
@@ -23,6 +24,7 @@ function MainWorkstation() {
   // Drawer / Menu Toggles (HUD panels)
   const [isMissionPlanOpen, setIsMissionPlanOpen] = useState<boolean>(false);
   const [isRouteDetailsOpen, setIsRouteDetailsOpen] = useState<boolean>(false);
+  const [isRiskVisualizerOpen, setIsRiskVisualizerOpen] = useState<boolean>(false);
   const [isMapLayersOpen, setIsMapLayersOpen] = useState<boolean>(false);
 
   // Map Layer States
@@ -54,6 +56,8 @@ function MainWorkstation() {
         onToggleMissionPlan={() => setIsMissionPlanOpen((prev) => !prev)}
         isRouteDetailsOpen={isRouteDetailsOpen}
         onToggleRouteDetails={() => setIsRouteDetailsOpen((prev) => !prev)}
+        isRiskVisualizerOpen={isRiskVisualizerOpen}
+        onToggleRiskVisualizer={() => setIsRiskVisualizerOpen((prev) => !prev)}
         isMapLayersOpen={isMapLayersOpen}
         onToggleMapLayers={() => setIsMapLayersOpen((prev) => !prev)}
         selectedRouteName={selectedRoute?.name || 'Fastest Route'}
@@ -94,6 +98,14 @@ function MainWorkstation() {
           route={selectedRoute}
           routes={routes}
           onSelectRoute={handleSelectRoute}
+          onOpenRiskVisualizer={() => setIsRiskVisualizerOpen(true)}
+        />
+
+        {/* Togglable Right Panel: Path Risk Score Visualizer */}
+        <PathRiskVisualizer
+          isOpen={isRiskVisualizerOpen}
+          onClose={() => setIsRiskVisualizerOpen(false)}
+          onSelectRoute={handleSelectRoute}
         />
 
         {/* Togglable Top-Right Panel: Map Layers & Ocean Readout */}
@@ -109,6 +121,7 @@ function MainWorkstation() {
           basemapStyle={basemapStyle}
           onChangeBasemap={setBasemapStyle}
           hoveredCellData={hoveredCellData}
+          onOpenRiskVisualizer={() => setIsRiskVisualizerOpen(true)}
         />
       </main>
     </div>

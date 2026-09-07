@@ -93,7 +93,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     selectedSegment,
     setSelectedSegment,
     selectedIceberg,
-    setSelectedIceberg
+    setSelectedIceberg,
+    enabledRoutes,
+    toggleRouteEnabled
   } = useMission();
 
   // Controlled or context fallback states
@@ -107,24 +109,12 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   const [isTimelinePlaying, setIsTimelinePlaying] = useState<boolean>(false);
   const [hoveredCellData, setHoveredCellData] = useState<any | null>(null);
 
-  // Per-route visibility toggles (allow toggling individual routes ON/OFF)
-  const [enabledRoutes, setEnabledRoutes] = useState<Record<string, boolean>>({
-    fastest: true,
-    shortest: true,
-    safest: true,
-    fuel_efficient: true,
-    balanced: true
-  });
-
   const activeRouteId = propSelectedRoute || selectedRouteId || 'fastest';
   const currentHz = DAY_TO_NEAREST_HORIZON(sliderDay);
 
   const toggleRouteVisibility = (routeId: string, ev?: React.MouseEvent) => {
     if (ev) ev.stopPropagation();
-    setEnabledRoutes((prev) => ({
-      ...prev,
-      [routeId]: !prev[routeId]
-    }));
+    toggleRouteEnabled(routeId);
   };
 
   // Sync external selectedHorizon changes into slider
@@ -1137,112 +1127,127 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
 
-    if (map.current.getLayer('routes-selected-line')) {
-      map.current.setFilter('routes-selected-line', [
-        'all',
-        ['==', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
-    }
-    if (map.current.getLayer('routes-selected-glow')) {
-      map.current.setFilter('routes-selected-glow', [
-        'all',
-        ['==', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
-    }
-    if (map.current.getLayer('routes-unselected-line')) {
-      map.current.setFilter('routes-unselected-line', [
-        'all',
-        ['!=', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
+    if (!map.current) return;
+    try {
+      const isSelectedVisible = enabledRoutes[activeRouteId] !== false;
+      const visibleUnselectedIds = Object.keys(enabledRoutes).filter(
+        (id) => id !== activeRouteId && enabledRoutes[id] !== false
+      );
+
+      if (map.current.getLayer('routes-selected-line')) {
+        map.current.setLayoutProperty('routes-selected-line', 'visibility', isSelectedVisible ? 'visible' : 'none');
+      }
+      if (map.current.getLayer('routes-selected-glow')) {
+        map.current.setLayoutProperty('routes-selected-glow', 'visibility', isSelectedVisible ? 'visible' : 'none');
+      }
+      if (map.current.getLayer('routes-unselected-line')) {
+        map.current.setFilter('routes-unselected-line', [
+          'in',
+          ['get', 'id'],
+          ['literal', visibleUnselectedIds]
+        ]);
+      }
+    } catch {
+      // style pending
     }
   }, [activeRouteId, enabledRoutes]);
 
-  // Toggle H3 Full Grid Visibility
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('canonical-h3-lines')) {
-      map.current.setLayoutProperty('canonical-h3-lines', 'visibility', showH3Grid ? 'visible' : 'none');
-    }
-  }, [showH3Grid]);
-
-  // Toggle Iceberg Trajectories Visibility
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('iceberg-trajectories-line')) {
-      map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', showTrajectories ? 'visible' : 'none');
-    }
-  }, [showTrajectories]);
-
-  // Update Selected Iceberg Filter
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const selId = selectedIceberg?.id || '';
-    if (map.current.getLayer('icebergs-selected-halo')) {
-      map.current.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
-    }
-    if (map.current.getLayer('icebergs-point')) {
-      map.current.setPaintProperty('icebergs-point', 'circle-radius', [
-        'case',
-        ['==', ['get', 'id'], selId],
-        8.0,
-        4.0
-      ] as any);
-    }
-  }, [selectedIceberg]);
-
-  // Update Selected Cell Filter
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const selId = selectedH3Cell?.id || '';
-    if (map.current.getLayer('canonical-h3-selected-line')) {
-      map.current.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], selId]);
-    }
-  }, [selectedH3Cell]);
-
   // Synchronize H3 Hexagon Grid Layer Visibility
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const vis = showH3Grid ? 'visible' : 'none';
-    if (map.current.getLayer('canonical-h3-mesh-line')) {
-      map.current.setLayoutProperty('canonical-h3-mesh-line', 'visibility', vis);
-    }
-    if (map.current.getLayer('canonical-h3-hit')) {
-      map.current.setLayoutProperty('canonical-h3-hit', 'visibility', vis);
+    if (!map.current) return;
+    try {
+      const vis = showH3Grid ? 'visible' : 'none';
+      const h3Layers = [
+        'canonical-h3-lines',
+        'canonical-h3-hit',
+        'canonical-h3-hover-fill',
+        'canonical-h3-selected-line'
+      ];
+      h3Layers.forEach((layerId) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.setLayoutProperty(layerId, 'visibility', vis);
+        }
+      });
+    } catch {
+      // style pending
     }
   }, [showH3Grid]);
 
   // Synchronize Icebergs Layer Visibility
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const vis = showIcebergs ? 'visible' : 'none';
-    if (map.current.getLayer('icebergs-point')) {
-      map.current.setLayoutProperty('icebergs-point', 'visibility', vis);
-    }
-    if (map.current.getLayer('icebergs-selected-halo')) {
-      map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', vis);
+    if (!map.current) return;
+    try {
+      const vis = showIcebergs ? 'visible' : 'none';
+      if (map.current.getLayer('icebergs-point')) {
+        map.current.setLayoutProperty('icebergs-point', 'visibility', vis);
+      }
+      if (map.current.getLayer('icebergs-selected-halo')) {
+        map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', vis);
+      }
+    } catch {
+      // style pending
     }
   }, [showIcebergs]);
 
   // Synchronize Iceberg Drift Trajectory Lines Visibility
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const vis = showTrajectories ? 'visible' : 'none';
-    if (map.current.getLayer('iceberg-trajectories-line')) {
-      map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', vis);
+    if (!map.current) return;
+    try {
+      const vis = showTrajectories ? 'visible' : 'none';
+      if (map.current.getLayer('iceberg-trajectories-line')) {
+        map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', vis);
+      }
+    } catch {
+      // style pending
     }
   }, [showTrajectories]);
 
   // Synchronize Basemap Raster Tiles
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('satellite-basemap-tiles') as any;
-    if (source && source.setTiles) {
-      source.setTiles([getTileUrl(basemapStyle)]);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('satellite-basemap-tiles') as any;
+      if (source && source.setTiles) {
+        source.setTiles([getTileUrl(basemapStyle)]);
+      }
+    } catch {
+      // style pending
     }
   }, [basemapStyle]);
+
+  // Update Selected Iceberg Filter
+  useEffect(() => {
+    if (!map.current) return;
+    try {
+      const selId = selectedIceberg?.id || '';
+      if (map.current.getLayer('icebergs-selected-halo')) {
+        map.current.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
+      }
+      if (map.current.getLayer('icebergs-point')) {
+        map.current.setPaintProperty('icebergs-point', 'circle-radius', [
+          'case',
+          ['==', ['get', 'id'], selId],
+          8.0,
+          4.0
+        ] as any);
+      }
+    } catch {
+      // style pending
+    }
+  }, [selectedIceberg]);
+
+  // Update Selected Cell Filter
+  useEffect(() => {
+    if (!map.current) return;
+    try {
+      const selId = selectedH3Cell?.id || '';
+      if (map.current.getLayer('canonical-h3-selected-line')) {
+        map.current.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], selId]);
+      }
+    } catch {
+      // style pending
+    }
+  }, [selectedH3Cell]);
 
   // Synchronize Route Identity Markers
   useEffect(() => {
@@ -1251,6 +1256,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     routeLabelMarkersRef.current = [];
 
     routeLabelPoints.forEach((r) => {
+      // Hide marker if this route is toggled OFF
+      if (enabledRoutes[r.id] === false) return;
+
       const el = document.createElement('div');
       el.style.padding = '2px 7px';
       el.style.background = r.isSelected ? r.color : 'rgba(15, 23, 42, 0.92)';
@@ -1275,7 +1283,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         .addTo(map.current!);
       routeLabelMarkersRef.current.push(marker);
     });
-  }, [routeLabelPoints, setSelectedRouteId]);
+  }, [routeLabelPoints, setSelectedRouteId, onSelectRoute, enabledRoutes]);
 
   const quickJumpDays = [
     { label: 'Now', day: 0 },

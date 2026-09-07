@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Ship, Layers, Navigation } from 'lucide-react';
+import { Compass, Ship, Layers, Navigation, Shield } from 'lucide-react';
 
 interface HeaderProps {
   isMissionPlanOpen: boolean;
@@ -8,6 +8,8 @@ interface HeaderProps {
   onToggleRouteDetails: () => void;
   isMapLayersOpen: boolean;
   onToggleMapLayers: () => void;
+  isRiskVisualizerOpen: boolean;
+  onToggleRiskVisualizer: () => void;
   selectedRouteName?: string;
 }
 
@@ -18,6 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleRouteDetails,
   isMapLayersOpen,
   onToggleMapLayers,
+  isRiskVisualizerOpen,
+  onToggleRiskVisualizer,
   selectedRouteName = 'Fastest Route'
 }) => {
   return (
@@ -115,7 +119,29 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Route Details ({selectedRouteName.split(' ')[0]})</span>
         </button>
 
-        {/* Button 3: Map Layers Toggle */}
+        {/* Button 3: Path Risk Visualizer */}
+        <button
+          onClick={onToggleRiskVisualizer}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            background: isRiskVisualizerOpen ? '#059669' : '#1e293b',
+            border: `1px solid ${isRiskVisualizerOpen ? '#34d399' : '#334155'}`,
+            borderRadius: '4px',
+            color: '#f8fafc',
+            fontSize: '11.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Shield size={14} color={isRiskVisualizerOpen ? '#ffffff' : '#34d399'} />
+          <span>Risk Visualizer</span>
+        </button>
+
+        {/* Button 4: Map Layers Toggle */}
         <button
           onClick={onToggleMapLayers}
           style={{
