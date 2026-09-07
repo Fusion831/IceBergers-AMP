@@ -37,6 +37,9 @@ data/antarctica/**/*.parquet
 *.nc
 *.tmp.nc
 *.dodsrc
+*.pkl
+*.db
+model/ice_knn_south/models/*.pkl
 frontend/src/data/*.json
 
 # Environment Variables

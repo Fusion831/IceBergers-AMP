@@ -139,6 +139,9 @@ class RouteAlternative(BaseModel):
     waypoints: List[RouteWaypoint]
     geojson_linestring: Optional[Dict[str, Any]] = None
     geojson: Optional[Dict[str, Any]] = None
+    cells: List[str] = Field(default_factory=list, description="Ordered canonical H3 cells traversed by route")
+    segments: List[Dict[str, Any]] = Field(default_factory=list, description="Segment-level performance and risk diagnostics")
+    diagnostics: Dict[str, Any] = Field(default_factory=dict, description="Trajectory-level risk profile and performance diagnostics")
     explanation: str = "Route generated under multi-hazard risk optimization."
     is_mock: bool = Field(default=True)
 

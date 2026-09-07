@@ -6,9 +6,14 @@ import structlog
 from core.config import settings
 
 
-def setup_logging() -> None:
+def setup_logging(log_level: Any = None, json_format: bool | None = None) -> None:
     """Configures structured JSON logging for production and human-readable for dev."""
-    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    if log_level is None:
+        level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    elif isinstance(log_level, str):
+        level = getattr(logging, log_level.upper(), logging.INFO)
+    else:
+        level = log_level
 
     shared_processors = [
         structlog.contextvars.merge_contextvars,
@@ -19,7 +24,8 @@ def setup_logging() -> None:
         structlog.processors.format_exc_info,
     ]
 
-    if settings.DEBUG:
+    use_json = json_format if json_format is not None else not settings.DEBUG
+    if not use_json:
         processors = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True)
         ]
@@ -40,7 +46,7 @@ def setup_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
-    root_logger.setLevel(log_level)
+    root_logger.setLevel(level)
 
 
 def get_logger(name: str = "amip") -> Any:

@@ -75,3 +75,6 @@ def get_sagar_kanya_profile() -> VesselProfile:
     if default_path.exists():
         return load_vessel_profile(default_path)
     return VesselProfile()
+
+
+SAGAR_KANYA_VESSEL = get_sagar_kanya_profile()

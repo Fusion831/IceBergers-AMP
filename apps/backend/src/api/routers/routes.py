@@ -2,7 +2,7 @@
 
 from typing import List
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from domain.route import (
     RouteOptimizationRequest,
     RouteOptimizationResponse,
@@ -17,6 +17,15 @@ router = APIRouter(prefix="/routes", tags=["Routes"])
 
 class RouteCompareRequest(BaseModel):
     route_ids: List[str]
+
+
+@router.get("/canonical", response_model=RouteOptimizationResponse, status_code=status.HTTP_200_OK)
+async def get_canonical_ncpor_routes(
+    scenario: str = Query("historical_trend_normal", description="SIC scenario (historical_trend_normal, historical_trend_low_ice, historical_trend_high_ice, ice_knn)"),
+    service: RoutingService = Depends(get_routing_service),
+) -> RouteOptimizationResponse:
+    """Retrieve the canonical NCPOR mission route alternatives (Cape Town -> Bharati -> Maitri -> Cape Town)."""
+    return service.get_canonical_ncpor_routes(scenario=scenario)
 
 
 @router.post("/optimize", response_model=RouteOptimizationResponse, status_code=status.HTTP_200_OK)

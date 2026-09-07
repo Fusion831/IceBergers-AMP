@@ -224,6 +224,10 @@ class VesselProfile(BaseModel):
 
     # Convenience Properties for Fast Evaluator Access
     @property
+    def name(self) -> str:
+        return self.vessel_name
+
+    @property
     def length_m(self) -> float:
         return float(self.geometry.length_overall_m.value)
 

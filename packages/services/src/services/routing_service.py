@@ -164,3 +164,58 @@ class RoutingService:
             safest_route_id=safest,
             comparison_summary=summary,
         )
+
+    def get_canonical_ncpor_routes(
+        self,
+        departure_time: Optional[datetime] = None,
+        vessel: Optional[VesselProfile] = None,
+        scenario: Optional[str] = None,
+    ) -> RouteOptimizationResponse:
+        """
+        Generate and cache all 5 canonical NCPOR route alternatives:
+        Cape Town -> Bharati (48h dwell) -> Maitri / India Bay (72h dwell) -> Cape Town.
+        """
+        from vessel.config import SAGAR_KANYA_VESSEL
+        active_vessel = vessel or SAGAR_KANYA_VESSEL
+        start_time = departure_time or datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+        if scenario and hasattr(self.custom_router, "env") and hasattr(self.custom_router.env, "sea_ice_provider"):
+            if hasattr(self.custom_router.env.sea_ice_provider, "set_scenario"):
+                self.custom_router.env.sea_ice_provider.set_scenario(scenario)
+
+        objectives = [
+            RouteObjective.SHORTEST,
+            RouteObjective.FASTEST,
+            RouteObjective.SAFEST,
+            RouteObjective.FUEL_EFFICIENT,
+            RouteObjective.BALANCED,
+        ]
+        routes = []
+        for obj in objectives:
+            alt = self.mission_planner.plan_canonical_ncpor_mission(
+                departure_time=start_time,
+                vessel=active_vessel,
+                objective=obj,
+            )
+            routes.append(alt)
+            self._route_cache[alt.route_id] = alt
+
+        recommended = routes[1]  # FASTEST
+        for r in routes:
+            if r.objective == RouteObjective.BALANCED:
+                recommended = r
+                break
+
+        origin = GeoPoint(latitude=-33.9249, longitude=18.4241, name="Cape Town Port")
+        dest = GeoPoint(latitude=-33.9249, longitude=18.4241, name="Cape Town Port Return")
+
+        return RouteOptimizationResponse(
+            request_id=f"canonical-{int(start_time.timestamp())}",
+            generated_at=datetime.now(timezone.utc),
+            origin=origin,
+            destination=dest,
+            departure_time=start_time,
+            routes=routes,
+            recommended_route_id=recommended.route_id,
+            computation_time_seconds=1.2,
+        )

@@ -49,32 +49,54 @@ export interface RouteWaypoint {
 export interface RouteAlternative {
   id: string;
   name: string;
-  type: 'balanced' | 'safest' | 'fastest' | 'fuel';
+  objective?: string;
+  type: 'balanced' | 'safest' | 'fastest' | 'shortest' | 'fuel' | 'fuel_efficient';
   tag: string;
   distanceNM: number;
   transitDays: number;
+  dwellDays?: number;
+  durationDays?: number;
+  durationHours?: number;
   estimatedFuelMT: number;
   seaIceExposurePct: number;
-  icebergRiskIndex: number; // 0-100
-  weatherSeverityScore: number; // 0-100
-  medianRisk: number; // 0-1
-  p95Risk: number; // 0-1
+  icebergRiskIndex: number;
+  weatherSeverityScore: number;
+  meanRisk: number;
+  maxRisk: number;
+  medianRisk: number;
+  p95Risk: number;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   color: string;
   waypoints: [number, number][];
-  waypointsDetail?: RouteWaypoint[];
+  waypointsDetail?: any[];
+  segments?: any[];
+  cells?: string[];
+  explanation?: string;
+  searchDiagnostics?: any;
+  bharatiArrival?: string;
+  maitriArrival?: string;
+  capeTownReturn?: string;
 }
 
 export interface GridCell {
   id: string;
-  bounds: [[number, number], [number, number], [number, number], [number, number]]; // 4 corners
+  bounds?: [number, number][];
   center: [number, number];
   passable: boolean;
-  sicPct: number; // 0 - 100
-  iceThicknessM: number;
+  sicPct: number;
+  iceThicknessM?: number;
   icebergCount: number;
   waveHeightM: number;
-  traversalCost: number; // 1.0 (ideal open water) to 10.0 (heavy pack/impassable)
+  windSpeedMs?: number;
+  currentMagnitudeKt?: number;
+  depthM?: number;
+  draftM?: number;
+  underKeelClearanceM?: number;
+  compositeRisk?: number;
+  riskComponents?: any;
+  hardBlocked?: boolean;
+  blockReason?: string;
+  traversalCost: number;
   status: 'Open Water' | 'Marginal Ice' | 'Heavy Pack' | 'Land / Ice Shelf';
 }
 

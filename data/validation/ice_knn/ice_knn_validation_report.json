@@ -1,0 +1,112 @@
+{
+  "status": "VALIDATED",
+  "model_name": "Ice-kNN-South",
+  "dimensions": {
+    "lead_days": 90,
+    "lat": 45,
+    "lon": 120
+  },
+  "bounds_check": {
+    "min_sic": 0.0,
+    "max_sic": 100.0,
+    "nan_count": 0,
+    "quantile_inversions": 0,
+    "passed": true
+  },
+  "milestones": {
+    "T+1": {
+      "date": "2020-01-01",
+      "mean_sic": 49.94265421032492,
+      "std_sic": 15.254356262339988,
+      "mean_uncertainty": 23.341241108469134,
+      "ice_extent_pixels_gt_15pct": 5347,
+      "ice_pack_pixels_gt_80pct": 135,
+      "rmse_vs_clim": 12.18173846677424
+    },
+    "T+7": {
+      "date": "2020-01-07",
+      "mean_sic": 49.67120520034733,
+      "std_sic": 15.341265575983963,
+      "mean_uncertainty": 23.358774211143984,
+      "ice_extent_pixels_gt_15pct": 5349,
+      "ice_pack_pixels_gt_80pct": 136,
+      "rmse_vs_clim": 12.225413116106768
+    },
+    "T+14": {
+      "date": "2020-01-14",
+      "mean_sic": 49.81660740572517,
+      "std_sic": 15.10607310716065,
+      "mean_uncertainty": 23.354685303460084,
+      "ice_extent_pixels_gt_15pct": 5334,
+      "ice_pack_pixels_gt_80pct": 112,
+      "rmse_vs_clim": 12.151748865233511
+    },
+    "T+30": {
+      "date": "2020-01-30",
+      "mean_sic": 50.21496700452714,
+      "std_sic": 15.310008442750208,
+      "mean_uncertainty": 23.574720070558715,
+      "ice_extent_pixels_gt_15pct": 5351,
+      "ice_pack_pixels_gt_80pct": 139,
+      "rmse_vs_clim": 12.375541271425096
+    },
+    "T+60": {
+      "date": "2020-02-29",
+      "mean_sic": 49.75916087278595,
+      "std_sic": 15.471481701886557,
+      "mean_uncertainty": 23.549882076181497,
+      "ice_extent_pixels_gt_15pct": 5343,
+      "ice_pack_pixels_gt_80pct": 127,
+      "rmse_vs_clim": 12.254414298242734
+    },
+    "T+90": {
+      "date": "2020-03-30",
+      "mean_sic": 49.93017352858974,
+      "std_sic": 15.125452351443078,
+      "mean_uncertainty": 23.59137884437319,
+      "ice_extent_pixels_gt_15pct": 5338,
+      "ice_pack_pixels_gt_80pct": 130,
+      "rmse_vs_clim": 12.157375694286289
+    }
+  },
+  "baseline_summary": {
+    "mean_rmse_vs_climatology": 12.23699832078098,
+    "mean_rmse_vs_persistence": 21.365956656557714,
+    "lead_30_rmse_clim": 12.375541271425096,
+    "lead_30_rmse_persistence": 21.650504859626196,
+    "lead_90_rmse_clim": 12.157375694286289,
+    "lead_90_rmse_persistence": 21.431333739399566
+  },
+  "station_evaluation": {
+    "Bharati_Approach": {
+      "coords": {
+        "lat": -69.4,
+        "lon": 76.2
+      },
+      "day_0_sic_pct": 56.91440257445687,
+      "day_0_unc_pct": 19.26519507264694,
+      "day_90_sic_pct": 61.48793087154246,
+      "day_90_unc_pct": 17.490579401760165
+    },
+    "Maitri_Approach": {
+      "coords": {
+        "lat": -70.0,
+        "lon": 12.0
+      },
+      "day_0_sic_pct": 33.438300834207965,
+      "day_0_unc_pct": 22.294208114023622,
+      "day_90_sic_pct": 50.54898024301662,
+      "day_90_unc_pct": 19.597875502988217
+    },
+    "Southern_Ocean_Open": {
+      "coords": {
+        "lat": -50.0,
+        "lon": 20.0
+      },
+      "day_0_sic_pct": 33.139069985229554,
+      "day_0_unc_pct": 34.81641704723531,
+      "day_90_sic_pct": 45.92609608616366,
+      "day_90_unc_pct": 22.302056720154336
+    }
+  }
+}

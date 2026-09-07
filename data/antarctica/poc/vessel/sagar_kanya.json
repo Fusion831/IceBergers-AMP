@@ -1,0 +1,29 @@
+{
+  "vessel_id": "orv_sagar_kanya",
+  "name": "ORV Sagar Kanya",
+  "vessel_type": "Oceanographic Research Vessel",
+  "owner": "Ministry of Earth Sciences (MoES) / NCPOR",
+  "operator": "Shipping Corporation of India (SCI)",
+  "geometry": {
+    "length_overall_m": 100.34,
+    "beam_m": 16.39,
+    "draft_m": 5.6
+  },
+  "speed": {
+    "cruise_speed_knots": 9.0,
+    "min_operating_speed_knots": 4.0,
+    "max_operating_speed_knots": 12.0,
+    "ice_speed_knots": 4.0
+  },
+  "ice_class": {
+    "classification": "Open Water / Marginal Ice Zone (< 15% SIC)",
+    "max_ice_thickness_m": 0.3,
+    "polar_certified": false
+  },
+  "endurance": {
+    "endurance_days": 45,
+    "fuel_capacity_m3": 433.0,
+    "fuel_capacity_mt": 368.05
+  },
+  "provenance": "Published NCPOR Fleet Specification & 2026 Sagar Kanya Maintenance Tender"
+}

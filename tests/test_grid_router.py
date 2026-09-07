@@ -133,8 +133,10 @@ def test_mandatory_4d_departure_time_sensitivity_benchmark():
     destination = GeoPoint(latitude=-70.0, longitude=70.0)
     vessel = VesselProfile()
 
-    t_jan = datetime(2026, 1, 15, 0, 0, tzinfo=timezone.utc)
-    t_feb = datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc)
+    # Use dates within the Ice-kNN-South 90-day forecast window (base: 2020-01-01).
+    # Jan 5 = lead day 4, Feb 5 = lead day 35 — different SIC snapshots from the real forecast.
+    t_jan = datetime(2020, 1, 5, 0, 0, tzinfo=timezone.utc)
+    t_feb = datetime(2020, 2, 5, 0, 0, tzinfo=timezone.utc)
 
     route_jan = router.optimize_leg(origin, destination, t_jan, vessel, RouteObjective.BALANCED)
     route_feb = router.optimize_leg(origin, destination, t_feb, vessel, RouteObjective.BALANCED)

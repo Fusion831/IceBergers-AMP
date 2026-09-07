@@ -1,0 +1,150 @@
+{
+  "dataset_version": "1.0.0-poc",
+  "generated_at": "2026-09-07T17:01:52.905049+00:00",
+  "scenario": "historical_trend_normal",
+  "mission": {
+    "name": "Canonical NCPOR Indian Antarctic Research Expedition",
+    "origin": {
+      "name": "Cape Town Port",
+      "lat": -33.9249,
+      "lon": 18.4241
+    },
+    "bharati_access": {
+      "name": "Bharati Maritime Access",
+      "lat": -69.4,
+      "lon": 76.19,
+      "dwell_hours": 48.0
+    },
+    "maitri_access": {
+      "name": "Maitri Maritime Access (India Bay)",
+      "lat": -69.95,
+      "lon": 11.73,
+      "dwell_hours": 72.0
+    },
+    "return_port": {
+      "name": "Cape Town Port Return",
+      "lat": -33.9249,
+      "lon": 18.4241
+    },
+    "canonical_distance_nm": 6562.9
+  },
+  "vessel": {
+    "vessel_id": "orv_sagar_kanya",
+    "name": "ORV Sagar Kanya",
+    "vessel_type": "Oceanographic Research Vessel",
+    "owner": "Ministry of Earth Sciences (MoES) / NCPOR",
+    "operator": "Shipping Corporation of India (SCI)",
+    "geometry": {
+      "length_overall_m": 100.34,
+      "beam_m": 16.39,
+      "draft_m": 5.6
+    },
+    "speed": {
+      "cruise_speed_knots": 9.0,
+      "min_operating_speed_knots": 4.0,
+      "max_operating_speed_knots": 12.0,
+      "ice_speed_knots": 4.0
+    },
+    "ice_class": {
+      "classification": "Open Water / Marginal Ice Zone (< 15% SIC)",
+      "max_ice_thickness_m": 0.3,
+      "polar_certified": false
+    },
+    "endurance": {
+      "endurance_days": 45,
+      "fuel_capacity_m3": 433.0,
+      "fuel_capacity_mt": 368.05
+    },
+    "provenance": "Published NCPOR Fleet Specification & 2026 Sagar Kanya Maintenance Tender"
+  },
+  "time_index": [
+    {
+      "key": "Now",
+      "offset_days": 0.0,
+      "label": "T+0 (Departure)",
+      "timestamp": "2024-01-01T00:00:00+00:00"
+    },
+    {
+      "key": "+1d",
+      "offset_days": 1.0,
+      "label": "T+1 Day",
+      "timestamp": "2024-01-02T00:00:00+00:00"
+    },
+    {
+      "key": "+3d",
+      "offset_days": 3.0,
+      "label": "T+3 Days",
+      "timestamp": "2024-01-04T00:00:00+00:00"
+    },
+    {
+      "key": "+7d",
+      "offset_days": 7.0,
+      "label": "T+7 Days",
+      "timestamp": "2024-01-08T00:00:00+00:00"
+    },
+    {
+      "key": "+14d",
+      "offset_days": 14.0,
+      "label": "T+14 Days",
+      "timestamp": "2024-01-15T00:00:00+00:00"
+    },
+    {
+      "key": "+30d",
+      "offset_days": 30.0,
+      "label": "T+30 Days",
+      "timestamp": "2024-01-31T00:00:00+00:00"
+    },
+    {
+      "key": "+60d",
+      "offset_days": 60.0,
+      "label": "T+60 Days",
+      "timestamp": "2024-03-01T00:00:00+00:00"
+    },
+    {
+      "key": "+90d",
+      "offset_days": 90.0,
+      "label": "T+90 Days",
+      "timestamp": "2024-03-31T00:00:00+00:00"
+    }
+  ],
+  "grid_metadata": {
+    "h3_resolution": 5,
+    "total_corridor_cells": 3497,
+    "swath_definition": "Canonical Cape Town -> Bharati -> Maitri -> Cape Town route corridor plus k-ring 1 boundary buffer"
+  },
+  "environmental_summary": {
+    "sic_provider": "HistoricalTrendSyntheticSICProvider",
+    "sic_status": "POC Deterministic Historical Synthesis",
+    "ocean_currents_source": "CMEMS Surface Currents Synthesis",
+    "wind_source": "ECMWF Open Data 10m Wind Synthesis",
+    "waves_source": "CMEMS Wave Height & Period Synthesis",
+    "bathymetry_source": "GEBCO 2024 Grid"
+  },
+  "icebergs": {
+    "count": 73,
+    "source": "USNIC / BYU Antarctic Iceberg Database",
+    "trajectories_computed": true
+  },
+  "routes": {
+    "count": 5,
+    "objectives": [
+      "FASTEST",
+      "SHORTEST",
+      "SAFEST",
+      "FUEL_EFFICIENT",
+      "BALANCED"
+    ]
+  },
+  "artifacts": {
+    "manifest": "manifest.json",
+    "grid_geojson": "grid/corridor_cells.geojson",
+    "grid_cells": "grid/cells.json",
+    "time_index": "time/time_index.json",
+    "environment": "environment/environment_by_horizon.json",
+    "risk": "risk/risk_by_horizon.json",
+    "icebergs": "icebergs/icebergs_73.json",
+    "routes": "routes/canonical_routes.json",
+    "comparison": "routes/comparison.json",
+    "vessel": "vessel/sagar_kanya.json"
+  }
+}

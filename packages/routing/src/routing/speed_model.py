@@ -81,11 +81,11 @@ class VesselSpeedModel:
         else:
             wave_penalty = 1.0
 
-        # 4. Non-linear sea ice slowdown curve
-        if sic > 0.05:
+        # 4. Non-linear sea ice slowdown curve for navigable ice (SIC <= max_sic)
+        if sic > 0.03:
             # Normalized ice resistance ratio
             ratio = min(1.0, sic / max_sic)
-            ice_penalty = max(0.20, 1.0 - (ratio ** 1.6))
+            ice_penalty = max(0.35, 1.0 - 0.65 * (ratio ** 1.4))
         else:
             ice_penalty = 1.0
 

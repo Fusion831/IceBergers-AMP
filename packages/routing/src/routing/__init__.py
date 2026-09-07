@@ -21,6 +21,7 @@ from routing.mission_planner import (
 from routing.grid_graph import (
     EnvironmentalGridGraph,
     EnvironmentalGridNode,
+    H3EnvironmentalGridGraph,
 )
 from routing.grid_router import (
     AMIPGridRouter,
@@ -37,6 +38,7 @@ __all__ = [
     "MissionPlanner",
     "EnvironmentalGridGraph",
     "EnvironmentalGridNode",
+    "H3EnvironmentalGridGraph",
     "AMIPGridRouter",
 ]
 

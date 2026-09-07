@@ -51,6 +51,9 @@ class MissionPlanner:
         all_risks: List[float] = []
         waypoint_seq = 0
 
+        all_cells: List[str] = []
+        all_segments: List[Dict[str, Any]] = []
+
         for target_idx, target in enumerate(sorted_targets):
             # Optimize leg between current position and target
             leg_route = self.router.optimize_leg(
@@ -61,6 +64,13 @@ class MissionPlanner:
                 objective=objective,
                 avoidance_zones=avoidance_zones,
             )
+
+            if leg_route.cells:
+                for c in leg_route.cells:
+                    if not all_cells or all_cells[-1] != c:
+                        all_cells.append(c)
+            if leg_route.segments:
+                all_segments.extend(leg_route.segments)
 
             # Append leg waypoints with updated cumulative sequence and distance
             for wp_idx, wp in enumerate(leg_route.waypoints):
@@ -75,9 +85,9 @@ class MissionPlanner:
                         eta=wp.eta,
                         speed_knots=wp.speed_knots,
                         leg_distance_nm=wp.leg_distance_nm,
-                        cumulative_distance_nm=round(total_distance + wp.cumulative_distance_nm, 1),
+                        cumulative_distance_nm=round(total_distance + (wp.cumulative_distance_nm or 0.0), 1),
                         leg_fuel_tonnes=wp.leg_fuel_tonnes,
-                        cumulative_fuel_tonnes=round(total_fuel + wp.cumulative_fuel_tonnes, 2),
+                        cumulative_fuel_tonnes=round(total_fuel + (wp.cumulative_fuel_tonnes or 0.0), 2),
                         local_risk=wp.local_risk,
                         ice_concentration=wp.ice_concentration,
                         bathymetry_depth_m=wp.bathymetry_depth_m,
@@ -124,12 +134,77 @@ class MissionPlanner:
             is_feasible=True,
         )
 
+        diagnostics = {
+            "mission_type": "multi_target_expedition",
+            "targets_count": len(sorted_targets),
+            "target_names": [t.name for t in sorted_targets],
+            "total_cells": len(all_cells),
+            "total_distance_nm": round(total_distance, 1),
+            "total_fuel_tonnes": round(total_fuel, 1),
+            "total_duration_hours": round(total_duration_hours, 1),
+        }
+
         return RouteAlternative(
             route_id=f"mission-route-{uuid4().hex[:8]}",
             objective=objective,
             departure_time=departure_time,
             metrics=metrics,
             waypoints=all_waypoints,
+            cells=all_cells,
+            segments=all_segments,
+            diagnostics=diagnostics,
             explanation=f"Multi-target mission itinerary visiting {len(sorted_targets)} targets ({[t.name for t in sorted_targets]}).",
-            is_mock=True,
+            is_mock=self.router.env.sea_ice_provider.is_mock if hasattr(self.router, "env") and hasattr(self.router.env, "sea_ice_provider") else False,
         )
+
+    def plan_canonical_ncpor_mission(
+        self,
+        departure_time: datetime,
+        vessel: Optional[VesselProfile] = None,
+        objective: RouteObjective = RouteObjective.BALANCED,
+        avoidance_zones: Optional[List[AvoidanceZone]] = None,
+    ) -> RouteAlternative:
+        """
+        Plans the canonical NCPOR Indian Antarctic Research Expedition voyage:
+        Cape Town -> Bharati Maritime Access (Prydz Bay) -> Maitri Maritime Access (India Bay) -> Cape Town.
+        """
+        from vessel.config import SAGAR_KANYA_VESSEL
+        active_vessel = vessel or SAGAR_KANYA_VESSEL
+
+        origin = GeoPoint(latitude=-33.9249, longitude=18.4241, name="Cape Town Port")
+        targets = [
+            MissionTarget(
+                id="target-bharati-maritime",
+                name="Bharati Maritime Access Node",
+                location=GeoPoint(latitude=-69.40, longitude=76.19, name="Bharati Maritime Access"),
+                target_type=MissionTargetType.STATION,
+                sequence_order=1,
+                dwell_hours=48.0,
+            ),
+            MissionTarget(
+                id="target-maitri-india-bay",
+                name="Maitri Maritime Access Node (India Bay)",
+                location=GeoPoint(latitude=-69.95, longitude=11.73, name="India Bay / Maitri Maritime Access"),
+                target_type=MissionTargetType.STATION,
+                sequence_order=2,
+                dwell_hours=72.0,
+            ),
+            MissionTarget(
+                id="target-cape-town-return",
+                name="Cape Town Port Return",
+                location=GeoPoint(latitude=-33.9249, longitude=18.4241, name="Cape Town Port"),
+                target_type=MissionTargetType.PORT,
+                sequence_order=3,
+                dwell_hours=0.0,
+            ),
+        ]
+
+        return self.plan_multi_target_mission(
+            origin=origin,
+            targets=targets,
+            departure_time=departure_time,
+            vessel=active_vessel,
+            objective=objective,
+            avoidance_zones=avoidance_zones,
+        )
+

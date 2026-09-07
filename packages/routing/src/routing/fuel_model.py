@@ -74,14 +74,14 @@ class NavalArchitectureFuelModel(FuelModelInterface):
         total_fuel_mt = daily_rate_mt * days
 
         metadata = {
-            "vessel_name": vessel.name,
+            "vessel_name": getattr(vessel, "name", None) or getattr(vessel, "vessel_name", "Unknown Vessel"),
             "speed_knots": speed_knots,
             "duration_days": round(days, 2),
             "daily_fuel_rate_mt": round(daily_rate_mt, 2),
             "ice_resistance_factor": round(ice_penalty, 3),
             "wave_resistance_factor": round(wave_penalty, 3),
             "power_ratio": round(power_ratio, 3),
-            "is_verified_operational": vessel.is_verified_operational,
+            "is_verified_operational": getattr(vessel, "is_verified_operational", True),
             "note": "Provisional naval architecture estimate based on speed-cubed power curve. Subject to telemetry calibration.",
         }
 

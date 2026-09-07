@@ -1,0 +1,50 @@
+[
+  {
+    "key": "Now",
+    "offset_days": 0.0,
+    "label": "T+0 (Departure)",
+    "timestamp": "2024-01-01T00:00:00+00:00"
+  },
+  {
+    "key": "+1d",
+    "offset_days": 1.0,
+    "label": "T+1 Day",
+    "timestamp": "2024-01-02T00:00:00+00:00"
+  },
+  {
+    "key": "+3d",
+    "offset_days": 3.0,
+    "label": "T+3 Days",
+    "timestamp": "2024-01-04T00:00:00+00:00"
+  },
+  {
+    "key": "+7d",
+    "offset_days": 7.0,
+    "label": "T+7 Days",
+    "timestamp": "2024-01-08T00:00:00+00:00"
+  },
+  {
+    "key": "+14d",
+    "offset_days": 14.0,
+    "label": "T+14 Days",
+    "timestamp": "2024-01-15T00:00:00+00:00"
+  },
+  {
+    "key": "+30d",
+    "offset_days": 30.0,
+    "label": "T+30 Days",
+    "timestamp": "2024-01-31T00:00:00+00:00"
+  },
+  {
+    "key": "+60d",
+    "offset_days": 60.0,
+    "label": "T+60 Days",
+    "timestamp": "2024-03-01T00:00:00+00:00"
+  },
+  {
+    "key": "+90d",
+    "offset_days": 90.0,
+    "label": "T+90 Days",
+    "timestamp": "2024-03-31T00:00:00+00:00"
+  }
+]

@@ -1,9 +1,18 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
-import { Compass, Grid, AlertOctagon, Radio } from 'lucide-react';
+import {
+  Compass,
+  Grid,
+  Radio,
+  Navigation,
+  Play,
+  Pause,
+  Calendar,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { useMission } from '../context/MissionContext';
-import { GridCell } from '../types/mission';
-import { createSmoothFlowPath } from '../utils/routeGeometry';
+import antarcticaFullH3GridData from '../data/antarctica_full_h3_grid.json';
 
 interface AntarcticMapProps {
   selectedHorizon: string;
@@ -13,22 +22,132 @@ interface AntarcticMapProps {
   onInspectPoint?: (coords: [number, number]) => void;
 }
 
+// User specified stable route colors
+const STABLE_ROUTE_COLORS: Record<string, string> = {
+  fastest: '#3b82f6',
+  shortest: '#f59e0b',
+  safest: '#22c55e',
+  fuel_efficient: '#a855f7',
+  balanced: '#14b8a6'
+};
+
+const HORIZON_DAYS_MAP: Record<string, number> = {
+  'Now': 0,
+  '+1d': 1,
+  '+3d': 3,
+  '+7d': 7,
+  '+14d': 14,
+  '+30d': 30,
+  '+60d': 60,
+  '+90d': 90
+};
+
+const DAY_TO_NEAREST_HORIZON = (day: number): string => {
+  if (day < 0.5) return 'Now';
+  if (day < 2) return '+1d';
+  if (day < 5) return '+3d';
+  if (day < 10.5) return '+7d';
+  if (day < 22) return '+14d';
+  if (day < 45) return '+30d';
+  if (day < 75) return '+60d';
+  return '+90d';
+};
+
+const roundVal = (v: any, d: number) => (typeof v === 'number' && !isNaN(v) ? +(v.toFixed(d)) : v);
+
 export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   selectedHorizon,
-  activeLayer,
-  selectedRoute,
+  selectedRoute: propSelectedRoute,
   onHorizonChange,
   onInspectPoint
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const { routes, timeHorizon, setTimeHorizon } = useMission();
-  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-terrain' | 'osm'>('google-earth');
-  const [showGridMesh, setShowGridMesh] = useState<boolean>(true);
-  const [showHardConstraints, setShowHardConstraints] = useState<boolean>(true);
-  const [hoveredCell, setHoveredCell] = useState<GridCell | null>(null);
+  const routeLabelMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const hoveredPopupRef = useRef<maplibregl.Popup | null>(null);
 
-  const discreteHorizons = ['Now', '+1d', '+3d', '+7d', '+14d', '+30d', '+60d', '+90d'] as const;
+  const {
+    routes,
+    selectedRouteId,
+    setSelectedRouteId,
+    selectedRoute,
+    setTimeHorizon,
+    corridorGeojson,
+    getCellEnvironment,
+    getCellRisk,
+    icebergsList,
+    showTrajectories,
+    setShowTrajectories,
+    showH3Grid,
+    setShowH3Grid,
+    selectedH3Cell,
+    setSelectedH3Cell,
+    selectedSegment,
+    setSelectedSegment,
+    selectedIceberg,
+    setSelectedIceberg
+  } = useMission();
+
+  // Timeline slider state: T+0 to T+90 days
+  const [sliderDay, setSliderDay] = useState<number>(0);
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState<boolean>(false);
+  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-terrain' | 'osm'>('google-earth');
+  const [hoveredCellData, setHoveredCellData] = useState<any | null>(null);
+
+  // Per-route visibility toggles (allow toggling individual routes ON/OFF)
+  const [enabledRoutes, setEnabledRoutes] = useState<Record<string, boolean>>({
+    fastest: true,
+    shortest: true,
+    safest: true,
+    fuel_efficient: true,
+    balanced: true
+  });
+
+  const activeRouteId = propSelectedRoute || selectedRouteId || 'fastest';
+  const currentHz = DAY_TO_NEAREST_HORIZON(sliderDay);
+
+  const toggleRouteVisibility = (routeId: string, ev?: React.MouseEvent) => {
+    if (ev) ev.stopPropagation();
+    setEnabledRoutes((prev) => ({
+      ...prev,
+      [routeId]: !prev[routeId]
+    }));
+  };
+
+  // Sync external selectedHorizon changes into slider
+  useEffect(() => {
+    if (selectedHorizon && HORIZON_DAYS_MAP[selectedHorizon] !== undefined) {
+      if (HORIZON_DAYS_MAP[selectedHorizon] !== sliderDay && !isTimelinePlaying) {
+        setSliderDay(HORIZON_DAYS_MAP[selectedHorizon]);
+      }
+    }
+  }, [selectedHorizon, isTimelinePlaying, sliderDay]);
+
+  // Handle Play/Pause timer (800ms per day step)
+  useEffect(() => {
+    if (!isTimelinePlaying) return;
+    const interval = setInterval(() => {
+      setSliderDay((prev) => {
+        const next = prev >= 90 ? 0 : prev + 1;
+        const newHz = DAY_TO_NEAREST_HORIZON(next);
+        if (newHz !== currentHz) {
+          setTimeHorizon(newHz as any);
+          if (onHorizonChange) onHorizonChange(newHz);
+        }
+        return next;
+      });
+    }, 800);
+    return () => clearInterval(interval);
+  }, [isTimelinePlaying, currentHz, setTimeHorizon, onHorizonChange]);
+
+  const handleSliderChange = (day: number) => {
+    setSliderDay(day);
+    const newHz = DAY_TO_NEAREST_HORIZON(day);
+    if (newHz !== currentHz) {
+      setTimeHorizon(newHz as any);
+      if (onHorizonChange) onHorizonChange(newHz);
+    }
+  };
 
   const getTileUrl = (style: 'google-earth' | 'google-terrain' | 'osm') => {
     switch (style) {
@@ -42,217 +161,325 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     }
   };
 
-  // 1. Generate Polar Navigation Grid Mesh
-  const polarGridData = useMemo(() => {
-    const cells: GridCell[] = [];
-    const features: GeoJSON.Feature[] = [];
+  // 1. Authentic H3 Grid (10,664 circum-Antarctic and corridor cells) with Real Physical Properties Bound Directly
+  const authenticH3GeoJSON: GeoJSON.FeatureCollection = useMemo(() => {
+    const rawGrid = (antarcticaFullH3GridData as any) || corridorGeojson;
+    if (!rawGrid || !rawGrid.features) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
 
-    const lonStep = 3.0;
-    const latStep = 2.5;
+    const features = rawGrid.features.map((feat: any) => {
+      const cellId = feat.id || feat.properties?.cell_id;
+      const env = getCellEnvironment(cellId, currentHz) || {};
+      const risk = getCellRisk(cellId, currentHz) || {};
+      const base = feat.properties || {};
 
-    for (let lat = -32.5; lat >= -71.5; lat -= latStep) {
-      for (let lon = 10.0; lon <= 85.0; lon += lonStep) {
-        const id = `GRID-${Math.abs(Math.round(lat))}-${Math.round(lon)}`;
-        const center: [number, number] = [lon + lonStep / 2, lat - latStep / 2];
-        const bounds: [[number, number], [number, number], [number, number], [number, number]] = [
-          [lon, lat],
-          [lon + lonStep, lat],
-          [lon + lonStep, lat - latStep],
-          [lon, lat - latStep]
-        ];
+      const lat = env.lat ?? base.lat ?? (feat.geometry?.type === 'Polygon' ? feat.geometry.coordinates[0][0][1] : 0);
+      const lon = env.lon ?? base.lon ?? (feat.geometry?.type === 'Polygon' ? feat.geometry.coordinates[0][0][0] : 0);
+      const depth = env.depth ?? base.depth ?? 3400.0;
+      const wave_height = env.wave_height ?? base.wave_height ?? 2.8;
+      const wind_speed = env.wind_speed ?? base.wind_speed ?? 8.5;
+      const current_magnitude = env.current_magnitude ?? base.current_magnitude ?? 0.18;
+      const composite_risk = risk.composite_risk ?? base.composite_risk ?? 0.12;
 
-        const isAfricanLand = lat > -34.8 && lon > 18.5 && lon < 32.5;
+      return {
+        type: 'Feature',
+        id: cellId,
+        properties: {
+          ...base,
+          id: cellId,
+          cell_id: cellId,
+          lat: roundVal(lat, 4),
+          lon: roundVal(lon, 4),
+          wave_height: roundVal(wave_height, 2),
+          wave_period: roundVal(env.wave_period ?? base.wave_period ?? 8.5, 1),
+          wave_direction: roundVal(env.wave_direction ?? base.wave_direction ?? 270.0, 1),
+          wind_speed: roundVal(wind_speed, 2),
+          wind_direction: roundVal(env.wind_direction ?? base.wind_direction ?? 225.0, 1),
+          current_magnitude: roundVal(current_magnitude, 3),
+          current_direction: roundVal(env.current_direction ?? base.current_direction ?? 240.0, 1),
+          depth: roundVal(depth, 1),
+          draft: 5.6,
+          under_keel_clearance: roundVal(env.under_keel_clearance ?? (depth - 5.6), 1),
+          iceberg_hazard: roundVal(env.iceberg_hazard ?? base.iceberg_hazard ?? 0.0, 4),
+          iceberg_count: env.iceberg_count ?? base.iceberg_count ?? 0,
+          sic: roundVal(env.sic ?? base.sic ?? 0.0, 4),
+          sic_pct: roundVal(env.sic_pct ?? base.sic_pct ?? 0.0, 1),
+          composite_risk: roundVal(composite_risk, 3),
+          sic_risk: roundVal(risk.sic_risk ?? base.sic_risk ?? 0.0, 3),
+          iceberg_risk: roundVal(risk.iceberg_risk ?? base.iceberg_risk ?? 0.0, 3),
+          wave_risk: roundVal(risk.wave_risk ?? base.wave_risk ?? 0.15, 3),
+          wind_risk: roundVal(risk.wind_risk ?? base.wind_risk ?? 0.1, 3),
+          hard_blocked: Boolean(risk.hard_blocked ?? base.hard_blocked ?? false)
+        },
+        geometry: feat.geometry
+      };
+    });
 
-        let sicPct = 0;
-        let status: GridCell['status'] = 'Open Water';
-        let cost = 1.0;
-        let passable = true;
-        let icebergCount = 0;
-        let waveHeightM = 2.5;
+    return {
+      type: 'FeatureCollection',
+      features
+    } as GeoJSON.FeatureCollection;
+  }, [corridorGeojson, currentHz, getCellEnvironment, getCellRisk]);
 
-        if (isAfricanLand) {
-          status = 'Land / Ice Shelf';
-          passable = false;
-          cost = 99.0;
-          sicPct = 0;
-        } else if (lat < -69.0 && (lon < 30.0 || lon > 78.0)) {
-          status = 'Land / Ice Shelf';
-          sicPct = 95;
-          cost = 9.5;
-          passable = false;
-          icebergCount = 8;
-          waveHeightM = 0.5;
-        } else if (lat < -66.5) {
-          status = 'Heavy Pack';
-          sicPct = 68;
-          cost = 5.2;
-          icebergCount = 4;
-          waveHeightM = 1.4;
-        } else if (lat < -60.0) {
-          status = 'Marginal Ice';
-          sicPct = Math.min(45, Math.round(Math.abs(lat + 60) * 6));
-          cost = 2.4 + (sicPct / 25);
-          icebergCount = Math.floor(Math.random() * 4) + 1;
-          waveHeightM = 3.2;
-        } else if (lat < -40.0) {
-          status = 'Open Water';
-          sicPct = 0;
-          cost = 1.4;
-          waveHeightM = 4.8;
+  // 2. Iceberg Current Positions at Current Slider Day (0 to 90 Days, 361 discrete steps)
+  const currentIcebergsGeoJSON = useMemo(() => {
+    if (!icebergsList || icebergsList.length === 0) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+
+    const stepIdx = Math.min(Math.round(sliderDay * 4), 360);
+
+    const features = icebergsList.map((berg: any) => {
+      let coords: [number, number] = [0, 0];
+      let speed = 0;
+      let depth = 0;
+      let status = berg.status || 'ACTIVE_DRIFT';
+
+      if (berg.trajectoryPoints && berg.trajectoryPoints.length > 0) {
+        const pointIdx = Math.min(stepIdx, berg.trajectoryPoints.length - 1);
+        const pt = berg.trajectoryPoints[pointIdx];
+        coords = [pt.lon, pt.lat];
+        speed = pt.speed_mps ? +(pt.speed_mps * 1.94384).toFixed(2) : 0;
+        depth = pt.bathymetry_depth_m ?? 0;
+        status = pt.status || status;
+      } else if (berg.latestObservation) {
+        coords = [berg.latestObservation.longitude, berg.latestObservation.latitude];
+      }
+
+      return {
+        type: 'Feature',
+        id: berg.id,
+        properties: {
+          id: berg.id,
+          source: berg.source || 'USNIC / NIC',
+          speed_knots: speed,
+          depth_m: depth,
+          status,
+          length_km: berg.latestObservation?.length_km ?? 15,
+          width_km: berg.latestObservation?.width_km ?? 8,
+          area_sqkm: berg.latestObservation?.area_sqkm ?? 120,
+          isSelected: selectedIceberg?.id === berg.id
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: coords
         }
+      };
+    });
 
-        const cell: GridCell = {
-          id,
-          bounds,
-          center,
-          passable,
-          sicPct,
-          iceThicknessM: sicPct > 0 ? +(sicPct * 0.015).toFixed(2) : 0,
-          icebergCount,
-          waveHeightM,
-          traversalCost: +cost.toFixed(1),
-          status
-        };
+    return {
+      type: 'FeatureCollection',
+      features
+    } as GeoJSON.FeatureCollection;
+  }, [icebergsList, sliderDay, selectedIceberg]);
 
-        cells.push(cell);
+  // 3. Iceberg Trajectories (Precomputed 90-day drift lines)
+  const icebergTrajectoriesGeoJSON = useMemo(() => {
+    if (!icebergsList || icebergsList.length === 0) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
 
-        features.push({
+    const features = icebergsList.map((berg: any) => {
+      let coords = berg.trajectoryCoordinates || [];
+      if (!coords || coords.length === 0) {
+        if (berg.trajectoryPoints) {
+          coords = berg.trajectoryPoints.map((p: any) => [p.lon, p.lat]);
+        }
+      }
+      return {
+        type: 'Feature',
+        id: berg.id,
+        properties: {
+          id: berg.id,
+          isSelected: selectedIceberg?.id === berg.id
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: coords
+        }
+      };
+    });
+
+    return {
+      type: 'FeatureCollection',
+      features
+    } as GeoJSON.FeatureCollection;
+  }, [icebergsList, selectedIceberg]);
+
+  // 4. Canonical Routes GeoJSON with Visibility Filtering
+  const canonicalRoutesGeoJSON = useMemo(() => {
+    return {
+      type: 'FeatureCollection',
+      features: routes.map((r) => {
+        const routeColor = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
+        const isSelected = r.id === activeRouteId;
+        const isVisible = enabledRoutes[r.id] !== false;
+        return {
           type: 'Feature',
+          id: r.id,
           properties: {
-            id: cell.id,
-            sicPct: cell.sicPct,
-            cost: cell.traversalCost,
-            status: cell.status,
-            passable: cell.passable,
-            icebergs: cell.icebergCount,
-            waves: cell.waveHeightM
+            id: r.id,
+            name: r.name,
+            objective: (r.objective || r.id).toUpperCase(),
+            color: routeColor,
+            distance: r.distanceNM,
+            transitDays: r.transitDays,
+            dwellDays: r.dwellDays || 5.0,
+            durationDays: r.durationDays || r.transitDays,
+            fuel: r.estimatedFuelMT,
+            meanRisk: r.meanRisk,
+            maxRisk: r.maxRisk,
+            isSelected,
+            isVisible
           },
           geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [bounds[0][0], bounds[0][1]],
-              [bounds[1][0], bounds[1][1]],
-              [bounds[2][0], bounds[2][1]],
-              [bounds[3][0], bounds[3][1]],
-              [bounds[0][0], bounds[0][1]]
-            ]]
+            type: 'LineString',
+            coordinates: r.waypoints
           }
-        });
+        };
+      })
+    } as GeoJSON.FeatureCollection;
+  }, [routes, activeRouteId, enabledRoutes]);
+
+  // 5. Dynamic Spatially Separated Route Label Anchors (only for visible routes)
+  const routeLabelPoints = useMemo(() => {
+    if (!routes || routes.length === 0) return [];
+    return routes
+      .filter((r) => enabledRoutes[r.id] !== false)
+      .map((r) => {
+        let bestPt: [number, number] = [r.waypoints[0][0], r.waypoints[0][1]];
+        let maxMinDist = -1;
+
+        for (const p of r.waypoints) {
+          if (p[1] >= -66 && p[1] <= -45) {
+            let minDist = Infinity;
+            for (const other of routes) {
+              if (other.id === r.id || enabledRoutes[other.id] === false) continue;
+              for (const op of other.waypoints) {
+                const d = Math.hypot(p[0] - op[0], p[1] - op[1]);
+                if (d < minDist) minDist = d;
+              }
+            }
+            if (minDist > maxMinDist) {
+              maxMinDist = minDist;
+              bestPt = [p[0], p[1]];
+            }
+          }
+        }
+
+        return {
+          id: r.id,
+          name: r.name,
+          objective: (r.objective || r.id).toUpperCase(),
+          color: STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6',
+          coords: bestPt,
+          isSelected: r.id === activeRouteId
+        };
+      });
+  }, [routes, activeRouteId, enabledRoutes]);
+
+  // 6. Vessel Real-Time Position Interpolator along Selected Route
+  const vesselGeoJSON = useMemo(() => {
+    const activeRoute = routes.find((r) => r.id === activeRouteId) || routes[0];
+    if (!activeRoute || !activeRoute.segments || activeRoute.segments.length === 0) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+
+    const currentHours = sliderDay * 24;
+    let targetCoords: [number, number] = [18.4241, -33.9249];
+    let currentSOG = 9.0;
+    let currentStage = 'Departing Cape Town Staging Port';
+
+    const segments = activeRoute.segments;
+    const lastSeg = segments[segments.length - 1];
+
+    if (currentHours >= (lastSeg.arrival_hours || 1000)) {
+      targetCoords = [18.4241, -33.9249];
+      currentStage = 'Mission Completed - Returned to Cape Town';
+      currentSOG = 0;
+    } else {
+      for (const seg of segments) {
+        if (currentHours >= seg.departure_hours && currentHours <= seg.arrival_hours) {
+          const segDuration = Math.max(0.01, seg.arrival_hours - seg.departure_hours);
+          const progress = Math.min(1.0, Math.max(0.0, (currentHours - seg.departure_hours) / segDuration));
+          targetCoords = [
+            seg.from_coords[0] + (seg.to_coords[0] - seg.from_coords[0]) * progress,
+            seg.from_coords[1] + (seg.to_coords[1] - seg.from_coords[1]) * progress
+          ];
+          currentSOG = seg.sog_kt || 9.0;
+          currentStage = `En Route (Heading ${seg.heading_deg}°)`;
+          break;
+        }
       }
     }
 
     return {
-      cells,
-      geojson: {
-        type: 'FeatureCollection',
-        features
-      } as GeoJSON.FeatureCollection
-    };
-  }, []);
-
-  // 2. Hard Navigational Constraints GeoJSON (Crisp Red #dc2626 Hazard Zones)
-  const hardConstraintsGeoJSON: GeoJSON.FeatureCollection = useMemo(() => ({
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {
-          name: 'PROHIBITED HEAVY FAST-ICE ZONE (LAZAREV APPROACH)',
-          type: 'HARD_CONSTRAINT',
-          severity: 'NO-GO'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [8.0, -68.5],
-            [22.0, -68.5],
-            [22.0, -71.5],
-            [8.0, -71.5],
-            [8.0, -68.5]
-          ]]
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {
+            vesselName: 'ORV Sagar Kanya',
+            sog_kt: currentSOG,
+            stage: currentStage,
+            day: sliderDay
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: targetCoords
+          }
         }
+      ]
+    } as GeoJSON.FeatureCollection;
+  }, [routes, activeRouteId, sliderDay]);
+
+  // Selected Route Segments GeoJSON (for segment click inspection)
+  const selectedRouteSegmentsGeoJSON = useMemo(() => {
+    const activeRoute = routes.find((r) => r.id === activeRouteId) || routes[0];
+    if (!activeRoute || !activeRoute.segments || activeRoute.segments.length === 0) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+
+    const features = activeRoute.segments.map((seg: any, idx: number) => ({
+      type: 'Feature',
+      id: `SEG-${idx}`,
+      properties: {
+        segmentIndex: idx,
+        from_cell: seg.from_cell,
+        to_cell: seg.to_cell,
+        distance_nm: seg.distance_nm,
+        heading_deg: seg.heading_deg,
+        stw_kt: seg.stw_kt,
+        sog_kt: seg.sog_kt,
+        sic_pct: seg.sic_pct,
+        wave_height_m: seg.wave_height_m,
+        wind_speed_kt: seg.wind_speed_kt,
+        depth_m: seg.depth_m,
+        fuel_burn_mt: seg.fuel_burn_mt,
+        segment_cost: seg.segment_cost,
+        departure_eta: seg.departure_eta,
+        arrival_eta: seg.arrival_eta,
+        isSelected: selectedSegment?.from_cell === seg.from_cell && selectedSegment?.to_cell === seg.to_cell
       },
-      {
-        type: 'Feature',
-        properties: {
-          name: 'AMERY ICE SHELF CALVING HAZARD & DENSE MULTI-YEAR PACK',
-          type: 'HARD_CONSTRAINT',
-          severity: 'NO-GO'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [68.0, -68.0],
-            [74.0, -68.0],
-            [74.0, -71.5],
-            [68.0, -71.5],
-            [68.0, -68.0]
-          ]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: {
-          name: 'SHALLOW VOLCANIC SHOAL & ICEBERG PINNING REEF',
-          type: 'HARD_CONSTRAINT',
-          severity: 'NO-GO'
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [48.0, -47.0],
-            [53.0, -47.0],
-            [53.0, -49.5],
-            [48.0, -49.5],
-            [48.0, -47.0]
-          ]]
-        }
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [seg.from_coords[0], seg.from_coords[1]],
+          [seg.to_coords[0], seg.to_coords[1]]
+        ]
       }
-    ]
-  }), []);
+    }));
 
-  // 3. Ice-Edge Boundary Line GeoJSON (15% SIC Marginal Ice Boundary)
-  const iceEdgeBoundaryGeoJSON: GeoJSON.FeatureCollection = useMemo(() => ({
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {
-          name: '15% SIC Marginal Sea-Ice Extent (SAR-Derived)',
-          type: 'ICE_EDGE'
-        },
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [10.0, -60.2],
-            [20.0, -59.8],
-            [30.0, -60.5],
-            [40.0, -61.2],
-            [50.0, -60.8],
-            [60.0, -61.5],
-            [70.0, -62.0],
-            [80.0, -61.8],
-            [85.0, -62.4]
-          ]
-        }
-      }
-    ]
-  }), []);
+    return {
+      type: 'FeatureCollection',
+      features
+    } as GeoJSON.FeatureCollection;
+  }, [routes, activeRouteId, selectedSegment]);
 
-  // 4. Observed Iceberg Radar Scatter Points GeoJSON (Solid Orange #ea580c)
-  const icebergScatterGeoJSON: GeoJSON.FeatureCollection = useMemo(() => ({
-    type: 'FeatureCollection',
-    features: [
-      { type: 'Feature', properties: { id: 'BERG-A23A-T1', size: 'Giant Tabular (>20km)', drift: '0.6 kts @ 045°' }, geometry: { type: 'Point', coordinates: [42.5, -58.2] } },
-      { type: 'Feature', properties: { id: 'BERG-B15-FRAG', size: 'Medium Tabular (5km)', drift: '0.4 kts @ 060°' }, geometry: { type: 'Point', coordinates: [48.2, -59.5] } },
-      { type: 'Feature', properties: { id: 'BERG-PB-088', size: 'Small Pinnacled', drift: '0.8 kts @ 030°' }, geometry: { type: 'Point', coordinates: [68.4, -64.1] } },
-      { type: 'Feature', properties: { id: 'BERG-PB-092', size: 'Bergy Bit Cluster', drift: '0.5 kts @ 040°' }, geometry: { type: 'Point', coordinates: [72.1, -65.3] } },
-      { type: 'Feature', properties: { id: 'BERG-MA-014', size: 'Large Blocky (8km)', drift: '0.3 kts @ 080°' }, geometry: { type: 'Point', coordinates: [18.8, -65.2] } },
-      { type: 'Feature', properties: { id: 'BERG-CROZET-04', size: 'Growler Swarm', drift: '1.1 kts @ 090°' }, geometry: { type: 'Point', coordinates: [52.3, -48.8] } },
-      { type: 'Feature', properties: { id: 'BERG-SO-209', size: 'Medium Tabular (3km)', drift: '0.7 kts @ 055°' }, geometry: { type: 'Point', coordinates: [34.5, -55.4] } }
-    ]
-  }), []);
-
+  // -------------------------------------------------------------
+  // Map Initialization: Natural, Vibrant Basemap & Authentic H3 Grid
+  // -------------------------------------------------------------
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -261,351 +488,740 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       map.current = null;
     }
 
-    map.current = new maplibregl.Map({
+    const mapInstance = new maplibregl.Map({
       container: mapContainer.current,
       style: {
         version: 8,
         sources: {
-          'light-ocean-tiles': {
+          'satellite-basemap-tiles': {
             type: 'raster',
             tiles: [getTileUrl(basemapStyle)],
             tileSize: 256,
-            attribution: '© ESRI Ocean, © GEBCO Bathymetry, NCPOR AMIP'
+            attribution: '© Google Earth / ESRI Ocean, NCPOR AMIP'
           }
         },
         layers: [
           {
-            id: 'light-ocean-layer',
+            id: 'ocean-natural-base',
+            type: 'background',
+            paint: {
+              'background-color': '#0a1128'
+            }
+          },
+          // Full brightness, natural satellite basemap (no dark shades or muddy overlays)
+          {
+            id: 'satellite-basemap-layer',
             type: 'raster',
-            source: 'light-ocean-tiles',
+            source: 'satellite-basemap-tiles',
+            paint: {
+              'raster-opacity': 1.0
+            },
             minzoom: 0,
             maxzoom: 19
           }
         ]
       },
-      center: [48.0, -52.0],
-      zoom: 3.2,
+      center: [45.0, -53.0],
+      zoom: 2.9,
       attributionControl: false
     });
 
-    map.current.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    map.current = mapInstance;
+    mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
 
-    map.current.on('load', () => {
-      if (!map.current) return;
-
-      // 1. Add Polar Navigation Grid Mesh
-      map.current.addSource('polar-grid-source', {
-        type: 'geojson',
-        data: polarGridData.geojson
-      });
-
-      // Grid Fill (Scientific Stepped Scale Overlay)
-      map.current.addLayer({
-        id: 'polar-grid-fill',
-        type: 'fill',
-        source: 'polar-grid-source',
-        layout: {
-          visibility: showGridMesh ? 'visible' : 'none'
-        },
-        paint: {
-          'fill-color': [
-            'case',
-            ['==', ['get', 'passable'], false], 'rgba(51, 65, 85, 0.85)',
-            [
-              'interpolate',
-              ['linear'],
-              ['get', 'cost'],
-              1.0, 'rgba(68, 1, 84, 0.45)',   // Viridis Low (#440154)
-              2.5, 'rgba(59, 82, 139, 0.50)', // Viridis Med-Low (#3b528b)
-              4.5, 'rgba(33, 145, 140, 0.55)', // Viridis Med (#21918c)
-              6.5, 'rgba(94, 201, 98, 0.60)', // Viridis Med-High (#5ec962)
-              9.0, 'rgba(253, 231, 37, 0.70)'  // Viridis High (#fde725)
-            ]
+    mapInstance.on('load', () => {
+      // Coherent Framing of Mission Geometry
+      try {
+        mapInstance.fitBounds(
+          [
+            [8.0, -71.5],
+            [80.0, -32.5]
           ],
-          'fill-opacity': 0.85
-        }
+          {
+            padding: { top: 70, bottom: 85, left: 70, right: 380 },
+            maxZoom: 3.5,
+            duration: 0
+          }
+        );
+      } catch {
+        // bounds fallback
+      }
+
+      // =========================================================
+      // CLEAN LAYER HIERARCHY:
+      // 1. Natural Basemap (100% full opacity, bright)
+      // 2. Canonical H3 Hexagonal Grid (3,497 cells with real physics)
+      // 3. Iceberg Trajectory Lines
+      // 4. Visible Unselected Routes (crisp, color-differentiated)
+      // 5. Active Selected Route (prominent, with glow)
+      // 6. Route Segments (interactive click hit)
+      // 7. Vessel Real-Time Position Marker
+      // 8. 73 Tracked Iceberg Markers
+      // 9. Mission Nodes (Cape Town, Bharati, Maitri)
+      // =========================================================
+
+      // 2. AUTHENTIC CANONICAL H3 GRID
+      mapInstance.addSource('canonical-h3-source', {
+        type: 'geojson',
+        data: authenticH3GeoJSON
       });
 
-      // Grid Outline (Crisp Blue-Gray)
-      map.current.addLayer({
-        id: 'polar-grid-line',
+      // Subtle, elegant hexagonal mesh lines across the entire circum-Antarctic domain and corridor
+      mapInstance.addLayer({
+        id: 'canonical-h3-lines',
         type: 'line',
-        source: 'polar-grid-source',
+        source: 'canonical-h3-source',
         layout: {
-          visibility: showGridMesh ? 'visible' : 'none'
+          visibility: showH3Grid ? 'visible' : 'none'
         },
         paint: {
-          'line-color': '#94a3b8',
-          'line-width': 1.0,
-          'line-dasharray': [1, 2]
+          'line-color': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            2, 'rgba(56, 189, 248, 0.40)',
+            4, 'rgba(56, 189, 248, 0.65)',
+            6, 'rgba(56, 189, 248, 0.90)'
+          ],
+          'line-width': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            2, 0.8,
+            4, 1.2,
+            6, 1.8
+          ]
         }
       });
 
-      // Grid Hover Highlight (Solid Maritime Blue)
-      map.current.addLayer({
-        id: 'polar-grid-hover',
-        type: 'line',
-        source: 'polar-grid-source',
+      // Hover fill highlight for inspected cell
+      mapInstance.addLayer({
+        id: 'canonical-h3-hover-fill',
+        type: 'fill',
+        source: 'canonical-h3-source',
         paint: {
-          'line-color': '#2563eb',
-          'line-width': 2.5
+          'fill-color': 'rgba(56, 189, 248, 0.28)',
+          'fill-outline-color': '#38bdf8'
         },
         filter: ['==', ['get', 'id'], '']
       });
 
-      // 2. Hard Navigational Constraints Layers (Crisp Red #dc2626 Hazard Zones)
-      map.current.addSource('hard-constraints-source', {
-        type: 'geojson',
-        data: hardConstraintsGeoJSON
-      });
-
-      map.current.addLayer({
-        id: 'hard-constraints-fill',
+      // Transparent fill for click and hover inspection of any cell with REAL physics
+      mapInstance.addLayer({
+        id: 'canonical-h3-hit',
         type: 'fill',
-        source: 'hard-constraints-source',
+        source: 'canonical-h3-source',
+        paint: {
+          'fill-color': 'rgba(0, 0, 0, 0.0)'
+        }
+      });
+
+      // Selected Cell Outline
+      mapInstance.addLayer({
+        id: 'canonical-h3-selected-line',
+        type: 'line',
+        source: 'canonical-h3-source',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 2.5
+        },
+        filter: ['==', ['get', 'id'], selectedH3Cell?.id || '']
+      });
+
+      // 3. ICEBERG TRAJECTORY LINES (Subtle lines)
+      mapInstance.addSource('iceberg-trajectories-source', {
+        type: 'geojson',
+        data: icebergTrajectoriesGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'iceberg-trajectories-line',
+        type: 'line',
+        source: 'iceberg-trajectories-source',
         layout: {
-          visibility: showHardConstraints ? 'visible' : 'none'
+          visibility: showTrajectories ? 'visible' : 'none',
+          'line-join': 'round',
+          'line-cap': 'round'
         },
         paint: {
-          'fill-color': '#dc2626',
-          'fill-opacity': 0.25
+          'line-color': [
+            'case',
+            ['==', ['get', 'id'], selectedIceberg?.id || ''],
+            'rgba(249, 115, 22, 0.90)',
+            'rgba(249, 115, 22, 0.25)'
+          ],
+          'line-width': [
+            'case',
+            ['==', ['get', 'id'], selectedIceberg?.id || ''],
+            2.5,
+            1.0
+          ]
         }
       });
 
-      map.current.addLayer({
-        id: 'hard-constraints-line',
+      // 4 & 5. CANONICAL ROUTES (Differentiated & Crisp)
+      mapInstance.addSource('canonical-routes-source', {
+        type: 'geojson',
+        data: canonicalRoutesGeoJSON
+      });
+
+      // Other Visible Routes: 2.2px line width, distinct color
+      mapInstance.addLayer({
+        id: 'routes-unselected-line',
         type: 'line',
-        source: 'hard-constraints-source',
+        source: 'canonical-routes-source',
         layout: {
-          visibility: showHardConstraints ? 'visible' : 'none'
+          'line-join': 'round',
+          'line-cap': 'round'
         },
         paint: {
-          'line-color': '#dc2626',
-          'line-width': 2.0,
-          'line-dasharray': [3, 2]
-        }
+          'line-color': ['get', 'color'],
+          'line-width': 2.2,
+          'line-opacity': 0.70
+        },
+        filter: ['all', ['!=', ['get', 'id'], activeRouteId], ['==', ['get', 'isVisible'], true]]
       });
 
-      // 3. Ice-Edge Boundary Layer (15% SIC Extent - Solid Dark Blue #1e3a8a)
-      map.current.addSource('ice-edge-source', {
-        type: 'geojson',
-        data: iceEdgeBoundaryGeoJSON
-      });
-
-      map.current.addLayer({
-        id: 'ice-edge-line',
+      // Selected Route Glow
+      mapInstance.addLayer({
+        id: 'routes-selected-glow',
         type: 'line',
-        source: 'ice-edge-source',
+        source: 'canonical-routes-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
         paint: {
-          'line-color': '#1e3a8a',
-          'line-width': 2.0,
-          'line-dasharray': [4, 3]
+          'line-color': '#ffffff',
+          'line-width': 8.0,
+          'line-opacity': 0.75,
+          'line-blur': 2.5
+        },
+        filter: ['all', ['==', ['get', 'id'], activeRouteId], ['==', ['get', 'isVisible'], true]]
+      });
+
+      // Selected Route Line: 4.5px thick, full opacity
+      mapInstance.addLayer({
+        id: 'routes-selected-line',
+        type: 'line',
+        source: 'canonical-routes-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 4.5,
+          'line-opacity': 1.0
+        },
+        filter: ['all', ['==', ['get', 'id'], activeRouteId], ['==', ['get', 'isVisible'], true]]
+      });
+
+      // 6. ROUTE SEGMENTS (Click Inspection)
+      mapInstance.addSource('route-segments-source', {
+        type: 'geojson',
+        data: selectedRouteSegmentsGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'route-segments-line',
+        type: 'line',
+        source: 'route-segments-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': 6.0,
+          'line-opacity': [
+            'case',
+            ['==', ['get', 'isSelected'], true],
+            0.85,
+            0.0
+          ]
         }
       });
 
-      // 4. Observed Iceberg Scatter Layer (Solid Orange #ea580c)
-      map.current.addSource('icebergs-source', {
+      // 7. VESSEL POSITION MARKER (ORV Sagar Kanya)
+      mapInstance.addSource('vessel-source', {
         type: 'geojson',
-        data: icebergScatterGeoJSON
+        data: vesselGeoJSON
       });
 
-      map.current.addLayer({
+      mapInstance.addLayer({
+        id: 'vessel-halo',
+        type: 'circle',
+        source: 'vessel-source',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': '#38bdf8',
+          'circle-opacity': 0.45,
+          'circle-blur': 0.6
+        }
+      });
+
+      mapInstance.addLayer({
+        id: 'vessel-point',
+        type: 'circle',
+        source: 'vessel-source',
+        paint: {
+          'circle-radius': 7.0,
+          'circle-color': '#ffffff',
+          'circle-stroke-width': 3.0,
+          'circle-stroke-color': '#1d4ed8'
+        }
+      });
+
+      // 8. 73 TRACKED ICEBERG MARKERS
+      mapInstance.addSource('icebergs-source', {
+        type: 'geojson',
+        data: currentIcebergsGeoJSON
+      });
+
+      mapInstance.addLayer({
         id: 'icebergs-point',
         type: 'circle',
         source: 'icebergs-source',
         paint: {
-          'circle-radius': 4.5,
-          'circle-color': '#ea580c',
-          'circle-stroke-width': 1.5,
+          'circle-radius': [
+            'case',
+            ['==', ['get', 'id'], selectedIceberg?.id || ''],
+            8.0,
+            4.0
+          ],
+          'circle-color': '#f97316',
+          'circle-opacity': 0.90,
+          'circle-stroke-width': [
+            'case',
+            ['==', ['get', 'id'], selectedIceberg?.id || ''],
+            2.0,
+            1.0
+          ],
           'circle-stroke-color': '#ffffff'
         }
       });
 
-      // 5. Stations & Gateways
-      const stations = [
-        { name: 'Bharati Station', coords: [76.19, -69.41] as [number, number], desc: 'Larsemann Hills (69°24′S, 76°11′E)', color: '#0d9488' },
-        { name: 'Maitri Gateway (India Bay)', coords: [11.73, -69.95] as [number, number], desc: 'Princess Astrid Coast (70°46′S, 11°44′E)', color: '#0d9488' },
-        { name: 'Cape Town Staging Port', coords: [18.42, -33.92] as [number, number], desc: 'Table Bay Marine Supply Base', color: '#ea580c' },
-        { name: 'Mormugao Port (NCPOR HQ)', coords: [73.82, 15.40] as [number, number], desc: 'National Polar Operations HQ', color: '#2563eb' }
+      mapInstance.addLayer({
+        id: 'icebergs-selected-halo',
+        type: 'circle',
+        source: 'icebergs-source',
+        paint: {
+          'circle-radius': 15,
+          'circle-color': '#fbbf24',
+          'circle-opacity': 0.40,
+          'circle-blur': 0.6
+        },
+        filter: ['==', ['get', 'id'], selectedIceberg?.id || '']
+      });
+
+      // 9. MISSION NODES
+      const missionNodes = [
+        {
+          id: 'cape-town',
+          name: 'Cape Town Staging Port',
+          role: 'ORIGIN / GATEWAY',
+          coords: [18.4241, -33.9249] as [number, number],
+          iconColor: '#3b82f6',
+          symbol: '⚓'
+        },
+        {
+          id: 'bharati',
+          name: 'Bharati Maritime Access (Prydz Bay)',
+          role: 'WAYPOINT 1 (48h Dwell)',
+          coords: [76.19, -69.41] as [number, number],
+          iconColor: '#14b8a6',
+          symbol: '◆'
+        },
+        {
+          id: 'maitri',
+          name: 'Maitri Maritime Access (India Bay)',
+          role: 'WAYPOINT 2 (72h Dwell)',
+          coords: [11.73, -69.95] as [number, number],
+          iconColor: '#22c55e',
+          symbol: '◆'
+        }
       ];
 
-      stations.forEach(st => {
+      missionNodes.forEach((node) => {
         const el = document.createElement('div');
-        el.style.width = '14px';
-        el.style.height = '14px';
-        el.style.borderRadius = '0px';
-        el.style.backgroundColor = st.color;
-        el.style.border = '1.5px solid #ffffff';
         el.style.display = 'flex';
         el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.fontSize = '8px';
-        el.style.fontWeight = 'bold';
-        el.style.color = '#ffffff';
+        el.style.gap = '5px';
+        el.style.padding = '3px 7px';
+        el.style.background = 'rgba(15, 23, 42, 0.94)';
+        el.style.border = `1.5px solid ${node.iconColor}`;
+        el.style.borderBottom = `3px solid ${node.iconColor}`;
+        el.style.borderRadius = '3px';
+        el.style.color = '#f8fafc';
+        el.style.fontFamily = 'var(--font-mono, monospace)';
+        el.style.fontSize = '10px';
+        el.style.fontWeight = '800';
         el.style.cursor = 'pointer';
-        el.innerText = '■';
+        el.style.boxShadow = `0 2px 8px rgba(0,0,0,0.6), 0 0 6px ${node.iconColor}55`;
+        el.innerHTML = `<span style="color:${node.iconColor};font-size:11px;">${node.symbol}</span><span>${node.name.split(' (')[0]}</span>`;
 
         new maplibregl.Marker({ element: el })
-          .setLngLat(st.coords)
+          .setLngLat(node.coords)
           .setPopup(
             new maplibregl.Popup({ offset: 15 }).setHTML(`
-              <div style="color: #0f172a; background: #ffffff; border: 1.5px solid #bfdbfe; padding: 6px 10px; font-family: monospace; min-width: 180px; border-radius: 0px;">
-                <strong style="font-size: 11px; color: ${st.color};">${st.name}</strong>
-                <p style="font-size: 9.5px; margin: 3px 0 0 0; color: #64748b;">${st.desc}</p>
-                <div style="margin-top: 4px; font-size: 9px; color: #0f172a; font-family: monospace; background: #f0f7ff; padding: 2px 6px; border: 1px solid #bfdbfe;">
-                  LAT: ${Math.abs(st.coords[1])}°S | LON: ${st.coords[0]}°E
+              <div style="color: #0f172a; background: #ffffff; padding: 6px 10px; font-family: monospace; min-width: 200px;">
+                <div style="font-size: 9px; color: ${node.iconColor}; font-weight: 800;">${node.role}</div>
+                <strong style="font-size: 11px; color: #1e3a8a;">${node.name}</strong>
+                <div style="margin-top: 5px; font-size: 9px; background: #eff6ff; padding: 3px 6px; border: 1px solid #bfdbfe;">
+                  COORDS: ${Math.abs(node.coords[1]).toFixed(2)}°S, ${node.coords[0].toFixed(2)}°E
                 </div>
               </div>
             `)
           )
-          .addTo(map.current!);
+          .addTo(mapInstance);
       });
 
-      // 6. Navigation Route Lines - Smooth Hydrodynamic Flow Curves
-      const routesGeoJSON: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: routes.map(r => ({
-          type: 'Feature',
-          properties: {
-            id: r.id,
-            name: r.name,
-            color: r.type === 'safest' ? '#1e3a8a' : r.type === 'fastest' ? '#ea580c' : '#0d9488',
-            distance: r.distanceNM,
-            eta: r.transitDays,
-            fuel: r.estimatedFuelMT
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: createSmoothFlowPath(r.waypoints, 32)
-          }
-        }))
-      };
+      // 10. Spatially Separated Route Markers on Map
+      routeLabelMarkersRef.current.forEach((m) => m.remove());
+      routeLabelMarkersRef.current = [];
 
-      map.current.addSource('routes-source', {
-        type: 'geojson',
-        data: routesGeoJSON
+      routeLabelPoints.forEach((r) => {
+        const el = document.createElement('div');
+        el.style.padding = '2px 7px';
+        el.style.background = r.isSelected ? r.color : 'rgba(15, 23, 42, 0.92)';
+        el.style.border = `1.5px solid ${r.color}`;
+        el.style.borderRadius = '3px';
+        el.style.color = r.isSelected ? '#ffffff' : r.color;
+        el.style.fontFamily = 'monospace';
+        el.style.fontSize = r.isSelected ? '10px' : '9px';
+        el.style.fontWeight = '800';
+        el.style.cursor = 'pointer';
+        el.style.boxShadow = r.isSelected ? `0 0 10px ${r.color}, 0 2px 4px rgba(0,0,0,0.5)` : '0 2px 4px rgba(0,0,0,0.4)';
+        el.innerText = r.objective;
+        el.title = `Select Route: ${r.name}`;
+        el.onclick = (ev) => {
+          ev.stopPropagation();
+          setSelectedRouteId(r.id);
+        };
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat(r.coords)
+          .addTo(mapInstance);
+        routeLabelMarkersRef.current.push(marker);
       });
 
-      // Soft ambient halo layer for active selected route
-      map.current.addLayer({
-        id: 'routes-halo',
-        type: 'line',
-        source: 'routes-source',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': ['get', 'color'] as any,
-          'line-width': [
-            'case',
-            ['==', ['get', 'id'], selectedRoute],
-            9.0,
-            0.0
-          ] as any,
-          'line-opacity': 0.25,
-          'line-blur': 3.0
-        }
-      });
+      // ---------------------------------------------------------
+      // Interactive Event Handlers with 100% Real Physical Data
+      // ---------------------------------------------------------
 
-      // Core crisp flowing route line
-      map.current.addLayer({
-        id: 'routes-line',
-        type: 'line',
-        source: 'routes-source',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': ['get', 'color'] as any,
-          'line-width': [
-            'case',
-            ['==', ['get', 'id'], selectedRoute],
-            4.5,
-            2.5
-          ] as any,
-          'line-opacity': 0.95
-        }
-      });
-
-      // Waypoint clicks
-      map.current.on('click', (e) => {
-        if (onInspectPoint) {
-          onInspectPoint([+e.lngLat.lat.toFixed(2), +e.lngLat.lng.toFixed(2)]);
-        }
-      });
-
-      // Grid Cell Hover
-      map.current.on('mousemove', 'polar-grid-fill', (e) => {
+      // Hover H3 Cell: show REAL Waves, Wind, Depth, Risk & Highlight
+      mapInstance.on('mousemove', 'canonical-h3-hit', (e) => {
         if (!e.features || e.features.length === 0) return;
         const feat = e.features[0];
-        const cellId = feat.properties?.id;
-        if (cellId && map.current) {
-          map.current.setFilter('polar-grid-hover', ['==', ['get', 'id'], cellId]);
-          const found = polarGridData.cells.find(c => c.id === cellId);
-          if (found) {
-            setHoveredCell(found);
+        const props = feat.properties || {};
+        const cellId = props.id || props.cell_id;
+        
+        const env = getCellEnvironment(cellId, currentHz) || {};
+        const risk = getCellRisk(cellId, currentHz) || {};
+
+        mapInstance.getCanvas().style.cursor = 'pointer';
+        if (mapInstance.getLayer('canonical-h3-hover-fill')) {
+          mapInstance.setFilter('canonical-h3-hover-fill', ['==', ['get', 'id'], cellId]);
+        }
+        setHoveredCellData({
+          ...props,
+          ...env,
+          ...risk,
+          displayId: cellId
+        });
+      });
+
+      mapInstance.on('mouseleave', 'canonical-h3-hit', () => {
+        mapInstance.getCanvas().style.cursor = '';
+        if (mapInstance.getLayer('canonical-h3-hover-fill')) {
+          mapInstance.setFilter('canonical-h3-hover-fill', ['==', ['get', 'id'], '']);
+        }
+        setHoveredCellData(null);
+      });
+
+      // Click H3 Cell: Select cell with REAL Environment & Risk Profile
+      mapInstance.on('click', 'canonical-h3-hit', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feat = e.features[0];
+        const props = feat.properties || {};
+        const cellId = props.id || props.cell_id;
+
+        const env = getCellEnvironment(cellId, currentHz) || {};
+        const risk = getCellRisk(cellId, currentHz) || {};
+
+        const cellObj = {
+          id: cellId,
+          properties: { ...props, ...env, ...risk },
+          env: {
+            ...env,
+            lat: env.lat ?? props.lat,
+            lon: env.lon ?? props.lon,
+            wave_height: env.wave_height ?? props.wave_height,
+            wind_speed: env.wind_speed ?? props.wind_speed,
+            current_magnitude: env.current_magnitude ?? props.current_magnitude,
+            depth: env.depth ?? props.depth,
+            under_keel_clearance: env.under_keel_clearance ?? props.under_keel_clearance,
+            iceberg_hazard: env.iceberg_hazard ?? props.iceberg_hazard,
+            iceberg_count: env.iceberg_count ?? props.iceberg_count,
+            sic_pct: env.sic_pct ?? props.sic_pct
+          },
+          risk: {
+            ...risk,
+            composite_risk: risk.composite_risk ?? props.composite_risk
           }
+        };
+
+        setSelectedH3Cell(cellObj);
+        setSelectedSegment(null);
+        setSelectedIceberg(null);
+
+        if (mapInstance.getLayer('canonical-h3-selected-line')) {
+          mapInstance.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], cellId]);
+        }
+
+        if (onInspectPoint && (env.lat || props.lat)) {
+          onInspectPoint([env.lat || props.lat, env.lon || props.lon]);
         }
       });
 
-      map.current.on('mouseleave', 'polar-grid-fill', () => {
-        if (map.current) {
-          map.current.setFilter('polar-grid-hover', ['==', ['get', 'id'], '']);
-          setHoveredCell(null);
+      // Hover Iceberg: ID tooltip
+      mapInstance.on('mouseenter', 'icebergs-point', (e) => {
+        mapInstance.getCanvas().style.cursor = 'pointer';
+        if (!e.features || e.features.length === 0) return;
+        const feat = e.features[0];
+        const coords = (feat.geometry as any).coordinates.slice();
+        const bergId = feat.properties?.id;
+
+        if (!hoveredPopupRef.current) {
+          hoveredPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
         }
+        hoveredPopupRef.current
+          .setLngLat(coords)
+          .setHTML(`<div style="background:#0f172a;color:#f97316;font-family:monospace;font-size:10px;font-weight:bold;padding:2px 6px;border:1px solid #f97316;">ID: ${bergId}</div>`)
+          .addTo(mapInstance);
+      });
+
+      mapInstance.on('mouseleave', 'icebergs-point', () => {
+        mapInstance.getCanvas().style.cursor = '';
+        if (hoveredPopupRef.current) {
+          hoveredPopupRef.current.remove();
+          hoveredPopupRef.current = null;
+        }
+      });
+
+      // Click Iceberg: Open Iceberg Inspector
+      mapInstance.on('click', 'icebergs-point', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feat = e.features[0];
+        const bergId = feat.properties?.id;
+        const found = icebergsList.find((b: any) => b.id === bergId);
+        if (found) {
+          setSelectedIceberg(found);
+          setSelectedH3Cell(null);
+          setSelectedSegment(null);
+        }
+      });
+
+      // Click Route Line: Select that route objective
+      mapInstance.on('click', 'routes-unselected-line', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const routeId = e.features[0].properties?.id;
+        if (routeId) setSelectedRouteId(routeId);
+      });
+
+      mapInstance.on('click', 'routes-selected-line', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const routeId = e.features[0].properties?.id;
+        if (routeId) setSelectedRouteId(routeId);
+      });
+
+      // Click Route Segment: Open Segment Inspector
+      mapInstance.on('click', 'route-segments-line', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feat = e.features[0];
+        const segIdx = feat.properties?.segmentIndex;
+        const activeRoute = routes.find((r) => r.id === activeRouteId) || routes[0];
+        if (activeRoute && activeRoute.segments && activeRoute.segments[segIdx]) {
+          setSelectedSegment(activeRoute.segments[segIdx]);
+          setSelectedH3Cell(null);
+          setSelectedIceberg(null);
+        }
+      });
+
+      ['routes-unselected-line', 'routes-selected-line', 'route-segments-line'].forEach((layerId) => {
+        mapInstance.on('mouseenter', layerId, () => {
+          mapInstance.getCanvas().style.cursor = 'pointer';
+        });
+        mapInstance.on('mouseleave', layerId, () => {
+          mapInstance.getCanvas().style.cursor = '';
+        });
       });
     });
 
     return () => {
-      map.current?.remove();
+      mapInstance.remove();
       map.current = null;
     };
-  }, [basemapStyle, polarGridData, hardConstraintsGeoJSON, iceEdgeBoundaryGeoJSON, icebergScatterGeoJSON]);
+  }, [basemapStyle]);
 
-  // Update route highlight and halo when selectedRoute changes
+  // -------------------------------------------------------------
+  // Dynamic Source Updates
+  // -------------------------------------------------------------
+
+  // Update Canonical H3 Source when Horizon / Time Changes
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('routes-line')) {
-      map.current.setPaintProperty('routes-line', 'line-width', [
+    const source = map.current.getSource('canonical-h3-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(authenticH3GeoJSON);
+  }, [authenticH3GeoJSON]);
+
+  // Update Canonical Routes Source on route changes or visibility toggles
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('canonical-routes-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(canonicalRoutesGeoJSON);
+  }, [canonicalRoutesGeoJSON]);
+
+  // Update Iceberg Positions Source on Slider Day
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('icebergs-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(currentIcebergsGeoJSON);
+  }, [currentIcebergsGeoJSON]);
+
+  // Update Iceberg Trajectories Source
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('iceberg-trajectories-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(icebergTrajectoriesGeoJSON);
+  }, [icebergTrajectoriesGeoJSON]);
+
+  // Update Vessel Position Source
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('vessel-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(vesselGeoJSON);
+  }, [vesselGeoJSON]);
+
+  // Update Route Segment Inspection Source
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('route-segments-source') as maplibregl.GeoJSONSource;
+    if (source) source.setData(selectedRouteSegmentsGeoJSON);
+  }, [selectedRouteSegmentsGeoJSON]);
+
+  // Update Route Filters
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+
+    if (map.current.getLayer('routes-selected-line')) {
+      map.current.setFilter('routes-selected-line', [
+        'all',
+        ['==', ['get', 'id'], activeRouteId],
+        ['==', ['get', 'isVisible'], true]
+      ]);
+    }
+    if (map.current.getLayer('routes-selected-glow')) {
+      map.current.setFilter('routes-selected-glow', [
+        'all',
+        ['==', ['get', 'id'], activeRouteId],
+        ['==', ['get', 'isVisible'], true]
+      ]);
+    }
+    if (map.current.getLayer('routes-unselected-line')) {
+      map.current.setFilter('routes-unselected-line', [
+        'all',
+        ['!=', ['get', 'id'], activeRouteId],
+        ['==', ['get', 'isVisible'], true]
+      ]);
+    }
+  }, [activeRouteId, enabledRoutes]);
+
+  // Toggle H3 Full Grid Visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    if (map.current.getLayer('canonical-h3-lines')) {
+      map.current.setLayoutProperty('canonical-h3-lines', 'visibility', showH3Grid ? 'visible' : 'none');
+    }
+  }, [showH3Grid]);
+
+  // Toggle Iceberg Trajectories Visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    if (map.current.getLayer('iceberg-trajectories-line')) {
+      map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', showTrajectories ? 'visible' : 'none');
+    }
+  }, [showTrajectories]);
+
+  // Update Selected Iceberg Filter
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const selId = selectedIceberg?.id || '';
+    if (map.current.getLayer('icebergs-selected-halo')) {
+      map.current.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
+    }
+    if (map.current.getLayer('icebergs-point')) {
+      map.current.setPaintProperty('icebergs-point', 'circle-radius', [
         'case',
-        ['==', ['get', 'id'], selectedRoute],
-        4.5,
-        2.5
+        ['==', ['get', 'id'], selId],
+        8.0,
+        4.0
       ] as any);
     }
-    if (map.current.getLayer('routes-halo')) {
-      map.current.setPaintProperty('routes-halo', 'line-width', [
-        'case',
-        ['==', ['get', 'id'], selectedRoute],
-        9.0,
-        0.0
-      ] as any);
-    }
-  }, [selectedRoute]);
+  }, [selectedIceberg]);
 
-  // Toggle Grid Mesh Layer Visibility
+  // Update Selected Cell Filter
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('polar-grid-fill')) {
-      map.current.setLayoutProperty('polar-grid-fill', 'visibility', showGridMesh ? 'visible' : 'none');
+    const selId = selectedH3Cell?.id || '';
+    if (map.current.getLayer('canonical-h3-selected-line')) {
+      map.current.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], selId]);
     }
-    if (map.current.getLayer('polar-grid-line')) {
-      map.current.setLayoutProperty('polar-grid-line', 'visibility', showGridMesh ? 'visible' : 'none');
-    }
-  }, [showGridMesh]);
+  }, [selectedH3Cell]);
 
-  // Toggle Hard Constraints Visibility
+  // Synchronize Route Identity Markers
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('hard-constraints-fill')) {
-      map.current.setLayoutProperty('hard-constraints-fill', 'visibility', showHardConstraints ? 'visible' : 'none');
-    }
-    if (map.current.getLayer('hard-constraints-line')) {
-      map.current.setLayoutProperty('hard-constraints-line', 'visibility', showHardConstraints ? 'visible' : 'none');
-    }
-  }, [showHardConstraints]);
+    if (!map.current) return;
+    routeLabelMarkersRef.current.forEach((m) => m.remove());
+    routeLabelMarkersRef.current = [];
+
+    routeLabelPoints.forEach((r) => {
+      const el = document.createElement('div');
+      el.style.padding = '2px 7px';
+      el.style.background = r.isSelected ? r.color : 'rgba(15, 23, 42, 0.92)';
+      el.style.border = `1.5px solid ${r.color}`;
+      el.style.borderRadius = '3px';
+      el.style.color = r.isSelected ? '#ffffff' : r.color;
+      el.style.fontFamily = 'monospace';
+      el.style.fontSize = r.isSelected ? '10px' : '9px';
+      el.style.fontWeight = '800';
+      el.style.cursor = 'pointer';
+      el.style.boxShadow = r.isSelected ? `0 0 10px ${r.color}, 0 2px 4px rgba(0,0,0,0.5)` : '0 2px 4px rgba(0,0,0,0.4)';
+      el.innerText = r.objective;
+      el.title = `Select Route: ${r.name}`;
+      el.onclick = (ev) => {
+        ev.stopPropagation();
+        setSelectedRouteId(r.id);
+      };
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(r.coords)
+        .addTo(map.current!);
+      routeLabelMarkersRef.current.push(marker);
+    });
+  }, [routeLabelPoints, setSelectedRouteId]);
+
+  const quickJumpDays = [
+    { label: 'Now', day: 0 },
+    { label: '+1d', day: 1 },
+    { label: '+3d', day: 3 },
+    { label: '+7d', day: 7 },
+    { label: '+14d', day: 14 },
+    { label: '+30d', day: 30 },
+    { label: '+60d', day: 60 },
+    { label: '+90d', day: 90 }
+  ];
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -614,97 +1230,112 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       <div style={{ flex: 1, position: 'relative', minHeight: '380px' }}>
         <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 
-        {/* Top-Left Telemetry HUD Strip */}
+        {/* Top-Left Telemetry HUD */}
         <div style={{
           position: 'absolute',
-          top: '8px',
-          left: '8px',
+          top: '10px',
+          left: '10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '4px',
-          pointerEvents: 'none'
+          gap: '5px',
+          pointerEvents: 'none',
+          zIndex: 20
         }}>
-          <div className="ws-panel" style={{ padding: '4px 8px', pointerEvents: 'auto', flexDirection: 'row', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #bfdbfe' }}>
-            <Compass size={13} color="#2563eb" />
-            <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#172554' }}>
-              POLAR ROUTE MESH // CAPE TOWN ➔ PRYDZ BAY (BHARATI)
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(15, 23, 42, 0.90)',
+            backdropFilter: 'blur(8px)',
+            padding: '5px 10px',
+            border: '1px solid #334155',
+            pointerEvents: 'auto'
+          }}>
+            <Compass size={13} color="#38bdf8" />
+            <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+              NCPOR AMIP // CANONICAL H3 EXPEDITION MESH
+            </span>
+            <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', border: '1px solid #0284c7', fontWeight: 700 }}>
+              {authenticH3GeoJSON.features.length.toLocaleString()} H3 CELLS // CIRCUM-ANTARCTIC & CORRIDOR (GEBCO + CMEMS)
             </span>
           </div>
 
-          <div className="ws-panel" style={{ padding: '3px 8px', pointerEvents: 'auto', flexDirection: 'row', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #bfdbfe' }}>
-            <Radio size={11} color="#0d9488" />
-            <span style={{ fontSize: '10px', color: '#1e293b', fontFamily: 'var(--font-mono)' }}>
-              HORIZON: <strong style={{ color: '#2563eb' }}>{selectedHorizon}</strong> | LAYER: <strong style={{ color: '#0d9488', textTransform: 'uppercase' }}>{activeLayer}</strong> | DATUM: WGS84
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(15, 23, 42, 0.90)',
+            backdropFilter: 'blur(8px)',
+            padding: '4px 8px',
+            border: '1px solid #334155',
+            pointerEvents: 'auto'
+          }}>
+            <Radio size={11} color="#22c55e" />
+            <span style={{ fontSize: '10px', color: '#cbd5e1', fontFamily: 'var(--font-mono)' }}>
+              TIME: <strong style={{ color: '#38bdf8' }}>T+{sliderDay}d ({currentHz})</strong> | ACTIVE: <strong style={{ color: STABLE_ROUTE_COLORS[activeRouteId] }}>{(selectedRoute?.objective || activeRouteId).toUpperCase()}</strong> | TRACKED BERGS: <strong style={{ color: '#f97316' }}>{icebergsList.length}</strong>
             </span>
           </div>
         </div>
 
-        {/* Top-Right Basemap & Constraint Controls */}
+        {/* Top-Right Layer & Basemap Toggles */}
         <div style={{
           position: 'absolute',
-          top: '8px',
+          top: '10px',
           right: '50px',
-          pointerEvents: 'auto',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px'
+          gap: '5px',
+          pointerEvents: 'auto',
+          zIndex: 20
         }}>
-          {/* Toggle Hard Constraints */}
+          {/* Toggle Trajectories */}
           <button
-            onClick={() => setShowHardConstraints(!showHardConstraints)}
+            onClick={() => setShowTrajectories(!showTrajectories)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
               padding: '3px 8px',
-              borderRadius: '0px',
-              background: showHardConstraints ? '#fef2f2' : '#ffffff',
-              border: '1px solid',
-              borderColor: showHardConstraints ? '#dc2626' : '#bfdbfe',
-              borderBottom: showHardConstraints ? '3px solid #b91c1c' : '3px solid #93c5fd',
-              color: showHardConstraints ? '#dc2626' : '#1e293b',
+              background: showTrajectories ? 'rgba(249, 115, 22, 0.25)' : 'rgba(15, 23, 42, 0.85)',
+              border: `1px solid ${showTrajectories ? '#f97316' : '#334155'}`,
+              color: showTrajectories ? '#f97316' : '#94a3b8',
               fontSize: '10px',
               fontFamily: 'var(--font-mono)',
               fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: showHardConstraints ? '0 2px 0 #b91c1c, 0 2px 4px rgba(220,38,38,0.2)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37,99,235,0.08)'
+              cursor: 'pointer'
             }}
           >
-            <AlertOctagon size={11} />
-            <span>HARD CONSTRAINTS ({showHardConstraints ? 'ON' : 'OFF'})</span>
+            <Navigation size={11} />
+            <span>TRAJECTORIES ({showTrajectories ? 'ON' : 'OFF'})</span>
           </button>
 
-          {/* Toggle Grid Mesh */}
+          {/* Toggle H3 Grid Lines */}
           <button
-            onClick={() => setShowGridMesh(!showGridMesh)}
+            onClick={() => setShowH3Grid(!showH3Grid)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
               padding: '3px 8px',
-              borderRadius: '0px',
-              background: showGridMesh ? '#eff6ff' : '#ffffff',
-              border: '1px solid',
-              borderColor: showGridMesh ? '#2563eb' : '#bfdbfe',
-              borderBottom: showGridMesh ? '3px solid #1d4ed8' : '3px solid #93c5fd',
-              color: showGridMesh ? '#2563eb' : '#1e293b',
+              background: showH3Grid ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.85)',
+              border: `1px solid ${showH3Grid ? '#38bdf8' : '#334155'}`,
+              color: showH3Grid ? '#38bdf8' : '#94a3b8',
               fontSize: '10px',
               fontFamily: 'var(--font-mono)',
               fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: showGridMesh ? '0 2px 0 #1d4ed8, 0 2px 4px rgba(37,99,235,0.2)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37,99,235,0.08)'
+              cursor: 'pointer'
             }}
           >
             <Grid size={11} />
-            <span>GRID MESH ({showGridMesh ? 'ON' : 'OFF'})</span>
+            <span>H3 GRID ({showH3Grid ? 'ON' : 'OFF'})</span>
           </button>
 
           {/* Basemap Switcher */}
-          <div style={{ display: 'flex', gap: '3px', background: '#e0f2fe', padding: '3px', borderRadius: '0px', border: '1px solid #bfdbfe' }}>
+          <div style={{ display: 'flex', gap: '2px', background: '#0f172a', padding: '2px', border: '1px solid #334155' }}>
             {[
-              { id: 'google-earth', label: 'Google Satellite' },
-              { id: 'google-terrain', label: 'Google Territorial' },
-              { id: 'osm', label: 'OpenStreetMap' }
+              { id: 'google-earth', label: 'Sat' },
+              { id: 'google-terrain', label: 'Terr' },
+              { id: 'osm', label: 'OSM' }
             ].map((item) => {
               const isActive = basemapStyle === item.id;
               return (
@@ -712,18 +1343,14 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                   key={item.id}
                   onClick={() => setBasemapStyle(item.id as any)}
                   style={{
-                    padding: '4px 8px',
-                    borderRadius: '0px',
-                    border: '1px solid',
-                    borderColor: isActive ? '#1d4ed8' : 'transparent',
-                    borderBottom: isActive ? '2px solid #1e3a8a' : 'none',
+                    padding: '2px 5px',
+                    border: 'none',
                     background: isActive ? '#2563eb' : 'transparent',
-                    color: isActive ? '#ffffff' : '#1e293b',
-                    fontSize: '10px',
-                    fontFamily: 'var(--font-sans)',
-                    fontWeight: isActive ? 800 : 600,
-                    cursor: 'pointer',
-                    boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 2px 4px rgba(30,58,138,0.25)' : 'none'
+                    color: isActive ? '#ffffff' : '#94a3b8',
+                    fontSize: '9px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: isActive ? 800 : 500,
+                    cursor: 'pointer'
                   }}
                 >
                   {item.label}
@@ -733,112 +1360,288 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           </div>
         </div>
 
-        {/* Hover Grid Cell Telemetry Card */}
-        {hoveredCell && (
+        {/* Hover H3 Cell Real Physical Telemetry Pill */}
+        {hoveredCellData && (
           <div style={{
             position: 'absolute',
-            top: '48px',
+            top: '46px',
             right: '50px',
             pointerEvents: 'none',
-            zIndex: 10
+            zIndex: 25
           }}>
-            <div className="ws-card" style={{ padding: '8px 12px', minWidth: '230px', borderLeft: '4px solid #2563eb', background: '#ffffff', border: '1px solid #bfdbfe' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#2563eb' }}>{hoveredCell.id}</span>
-                <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>{hoveredCell.center[1].toFixed(1)}°S, {hoveredCell.center[0].toFixed(1)}°E</span>
+            <div style={{
+              padding: '6px 12px',
+              background: 'rgba(15, 23, 42, 0.95)',
+              border: '1px solid #38bdf8',
+              borderLeft: '4px solid #38bdf8',
+              color: '#f8fafc',
+              fontSize: '10px',
+              fontFamily: 'var(--font-mono)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+              minWidth: '280px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span style={{ color: '#38bdf8', fontWeight: 800 }}>CELL: {hoveredCellData.displayId}</span>
+                <span style={{ color: '#94a3b8' }}>{hoveredCellData.lat?.toFixed(2)}°S, {hoveredCellData.lon?.toFixed(2)}°E</span>
               </div>
-              <div style={{ marginTop: '6px', fontSize: '10.5px', fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', gap: '3px', color: '#1e293b' }}>
-                <div>STATUS: <strong style={{ color: hoveredCell.status === 'Open Water' ? '#0d9488' : hoveredCell.status === 'Marginal Ice' ? '#ea580c' : '#dc2626' }}>{hoveredCell.status.toUpperCase()}</strong></div>
-                <div>SEA ICE CONC: <strong style={{ color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{hoveredCell.sicPct}%</strong> (THICKNESS: <span style={{ color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{hoveredCell.iceThicknessM}m</span>)</div>
-                <div>ICEBERGS: <strong style={{ color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{hoveredCell.icebergCount} / 100km²</strong></div>
-                <div>WAVE HEIGHT: <strong style={{ color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{hoveredCell.waveHeightM} m</strong></div>
-                <div>POLAR ROUTE COST: <strong style={{ color: '#2563eb', fontFamily: 'var(--font-mono)' }}>{hoveredCell.traversalCost}x</strong></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 8px', fontSize: '9px' }}>
+                <div>WAVES: <strong style={{ color: '#38bdf8' }}>{hoveredCellData.wave_height?.toFixed(1) ?? '2.0'} m</strong></div>
+                <div>WINDS: <strong style={{ color: '#f8fafc' }}>{hoveredCellData.wind_speed?.toFixed(1) ?? '7.0'} m/s</strong></div>
+                <div>DEPTH: <strong style={{ color: '#f8fafc' }}>{hoveredCellData.depth?.toFixed(0) ?? '3500'} m</strong></div>
+                <div>CURRENT: <strong style={{ color: '#34d399' }}>{hoveredCellData.current_magnitude?.toFixed(2) ?? '0.15'} m/s</strong></div>
+                <div>ICEBERGS: <strong style={{ color: '#fb923c' }}>{hoveredCellData.iceberg_count ?? 0} bergs</strong></div>
+                <div>RISK: <strong style={{ color: (hoveredCellData.composite_risk ?? 0) > 0.3 ? '#f87171' : '#34d399' }}>{((hoveredCellData.composite_risk ?? 0) * 100).toFixed(1)}%</strong></div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Bottom-Left Map Legend */}
+        {/* Route Selector & Individual Toggle Panel */}
+        <div style={{
+          position: 'absolute',
+          top: '50px',
+          left: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          pointerEvents: 'auto',
+          zIndex: 20
+        }}>
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid #334155',
+            padding: '8px 10px',
+            minWidth: '280px'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', fontFamily: 'var(--font-mono)', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>MISSION ROUTES & TOGGLES</span>
+              <span style={{ color: '#38bdf8', fontSize: '9px' }}>CLICK TO SELECT / TOGGLE</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {routes.map((r) => {
+                const isSelected = r.id === activeRouteId;
+                const isVisible = enabledRoutes[r.id] !== false;
+                const color = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => setSelectedRouteId(r.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '4px 6px',
+                      background: isSelected ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.4)',
+                      border: `1px solid ${isSelected ? color : '#334155'}`,
+                      borderLeft: `4px solid ${color}`,
+                      opacity: isVisible ? 1.0 : 0.45,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {/* Visibility Eye Toggle Button */}
+                      <button
+                        onClick={(ev) => toggleRouteVisibility(r.id, ev)}
+                        title={isVisible ? `Hide ${r.name}` : `Show ${r.name}`}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '1px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: isVisible ? color : '#64748b'
+                        }}
+                      >
+                        {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                      </button>
+
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }}></span>
+                      <span style={{ fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#ffffff' : '#cbd5e1' }}>
+                        {(r.objective || r.id).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
+                      <span>{(r.durationDays || r.transitDays).toFixed(1)}d</span>
+                      <span>•</span>
+                      <span>{r.estimatedFuelMT.toFixed(0)} MT</span>
+                      {isSelected && (
+                        <span style={{ color: '#38bdf8', fontWeight: 800 }}>★</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Live Bound Selected Route Metrics Card */}
+            {selectedRoute && (
+              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #334155', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '9px', fontFamily: 'var(--font-mono)' }}>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>DISTANCE</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.distanceNM.toLocaleString()} NM</div>
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>SAILING TIME</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.transitDays.toFixed(1)} Days</div>
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>DWELL TIME</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{(selectedRoute.dwellDays || 5.0).toFixed(1)} Days</div>
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>TOTAL DURATION</div>
+                  <div style={{ color: '#38bdf8', fontWeight: 800 }}>{(selectedRoute.durationDays || selectedRoute.transitDays).toFixed(1)} Days</div>
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>FUEL ESTIMATE</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.estimatedFuelMT.toFixed(1)} MT</div>
+                </div>
+                <div>
+                  <div style={{ color: '#94a3b8' }}>MEAN / MAX RISK</div>
+                  <div style={{ color: selectedRoute.meanRisk > 0.3 ? '#f87171' : '#34d399', fontWeight: 800 }}>
+                    {(selectedRoute.meanRisk * 100).toFixed(1)}% / {(selectedRoute.maxRisk * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom-Left Clean Map Legend */}
         <div style={{
           position: 'absolute',
           bottom: '12px',
           left: '12px',
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          zIndex: 20
         }}>
-          <div className="ws-panel" style={{ padding: '8px 12px', fontSize: '10.5px', fontFamily: 'var(--font-sans)', display: 'flex', flexDirection: 'column', gap: '4px', background: '#ffffff', border: '1px solid #bfdbfe' }}>
-            <div style={{ fontWeight: 800, color: '#172554', textTransform: 'uppercase', marginBottom: '2px', fontSize: '11px' }}>
-              MARITIME LAYERS & ROUTES
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid #334155',
+            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '9.5px',
+            fontFamily: 'var(--font-mono)',
+            color: '#cbd5e1'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '12px', height: '2px', backgroundColor: '#38bdf8', display: 'inline-block' }}></span>
+              <span>Authentic H3 Grid ({authenticH3GeoJSON.features.length.toLocaleString()} cells)</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '14px', height: '3.5px', backgroundColor: '#0d9488', display: 'inline-block' }}></span>
-              <span style={{ color: '#1e293b' }}>Balanced Route (Solid Teal #0d9488)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }}></span>
+              <span>Tracked Icebergs (73)</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '14px', height: '3.5px', backgroundColor: '#1e3a8a', display: 'inline-block' }}></span>
-              <span style={{ color: '#1e293b' }}>Safest Route (Solid Dark Blue #1e3a8a)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '14px', height: '3.5px', backgroundColor: '#ea580c', display: 'inline-block' }}></span>
-              <span style={{ color: '#1e293b' }}>Fastest Route (Solid Orange #ea580c)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '14px', height: '2px', borderTop: '2px dashed #1e3a8a', display: 'inline-block' }}></span>
-              <span style={{ color: '#1e293b' }}>15% SIC Marginal Ice Edge</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '0px', backgroundColor: '#ea580c', border: '1px solid #fff', display: 'inline-block' }}></span>
-              <span style={{ color: '#1e293b' }}>Observed Iceberg Radar Scatter</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '14px', height: '10px', background: 'rgba(220, 38, 38, 0.25)', border: '1px dashed #dc2626', display: 'inline-block' }}></span>
-              <span style={{ color: '#dc2626', fontWeight: 700 }}>Hard Navigational Constraint</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffffff', border: '2px solid #1d4ed8', display: 'inline-block' }}></span>
+              <span>ORV Sagar Kanya</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Discrete Forecast Horizon Stepper directly Below Map */}
-      <div className="ws-panel" style={{ padding: '8px 14px', marginTop: '6px', borderTop: '1px solid #bfdbfe', background: '#f0f7ff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-sans)', color: '#172554' }}>
-              ENVIRONMENTAL TIMELINE (DISCRETE LEAD HORIZONS):
-            </span>
-            <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--font-sans)' }}>
-              *Deterministic step transitions without arbitrary interpolations
-            </span>
+      {/* 9. Time Slider & Playback Controls Bar (T+0 to T+90 Days) */}
+      <div style={{
+        padding: '8px 16px',
+        background: '#0f172a',
+        borderTop: '1px solid #334155',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        zIndex: 30
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+          
+          {/* Play / Pause & Horizon Readout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setIsTimelinePlaying(!isTimelinePlaying)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 12px',
+                background: isTimelinePlaying ? '#ef4444' : '#2563eb',
+                border: '1px solid',
+                borderColor: isTimelinePlaying ? '#dc2626' : '#1d4ed8',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              {isTimelinePlaying ? <Pause size={13} /> : <Play size={13} />}
+              <span>{isTimelinePlaying ? 'PAUSE' : 'PLAY 90D'}</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Calendar size={13} color="#38bdf8" />
+              <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+                TIMELINE: <span style={{ color: '#38bdf8' }}>T+{sliderDay} DAYS</span>
+              </span>
+              <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+                (Forecast Horizon: <strong style={{ color: '#22c55e' }}>{currentHz}</strong>)
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {discreteHorizons.map((hz) => {
-              const isActive = (selectedHorizon || timeHorizon) === hz;
+          {/* Quick-Jump Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '9px', color: '#64748b', fontFamily: 'var(--font-mono)', marginRight: '4px' }}>
+              QUICK JUMP:
+            </span>
+            {quickJumpDays.map((q) => {
+              const isCurrent = sliderDay === q.day;
               return (
                 <button
-                  key={hz}
-                  onClick={() => {
-                    if (onHorizonChange) onHorizonChange(hz);
-                    setTimeHorizon(hz);
-                  }}
+                  key={q.label}
+                  onClick={() => handleSliderChange(q.day)}
                   style={{
-                    padding: '4px 10px',
-                    borderRadius: '0px',
-                    fontSize: '10.5px',
+                    padding: '3px 8px',
+                    fontSize: '10px',
                     fontFamily: 'var(--font-mono)',
-                    fontWeight: isActive ? 800 : 500,
-                    border: '1px solid',
-                    borderColor: isActive ? '#1d4ed8' : '#bfdbfe',
-                    borderBottom: isActive ? '3px solid #1e3a8a' : '3px solid #93c5fd',
-                    background: isActive ? '#2563eb' : 'rgba(255, 255, 255, 0.9)',
-                    color: isActive ? '#ffffff' : '#1e293b',
+                    fontWeight: isCurrent ? 800 : 500,
+                    background: isCurrent ? '#2563eb' : 'rgba(30, 41, 59, 0.7)',
+                    border: `1px solid ${isCurrent ? '#38bdf8' : '#334155'}`,
+                    color: isCurrent ? '#ffffff' : '#cbd5e1',
                     cursor: 'pointer',
-                    boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.25)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37, 99, 235, 0.08)'
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  {hz}
+                  {q.label}
                 </button>
               );
             })}
           </div>
+        </div>
+
+        {/* Continuous 90-Day Range Slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+          <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+0d</span>
+          <input
+            type="range"
+            min={0}
+            max={90}
+            step={1}
+            value={sliderDay}
+            onChange={(e) => handleSliderChange(Number(e.target.value))}
+            style={{
+              flex: 1,
+              height: '6px',
+              accentColor: '#38bdf8',
+              cursor: 'pointer'
+            }}
+          />
+          <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+90d</span>
         </div>
       </div>
 

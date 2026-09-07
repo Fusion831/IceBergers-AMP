@@ -9,7 +9,14 @@ from data_access.zarr_reader import ZarrReader, default_zarr_reader
 from data_access.environment_provider import (
     EnvironmentalDataProviderInterface,
     SyntheticEnvironmentalDataProvider,
+    CoupledEnvironmentalDataProvider,
     default_environment_provider,
+)
+from data_access.sea_ice_provider import (
+    SeaIceForecastProviderInterface,
+    MockSeaIceProvider,
+    IceKNNSeaIceProvider,
+    get_sea_ice_provider,
 )
 
 __all__ = [
@@ -21,5 +28,11 @@ __all__ = [
     "default_zarr_reader",
     "EnvironmentalDataProviderInterface",
     "SyntheticEnvironmentalDataProvider",
+    "CoupledEnvironmentalDataProvider",
     "default_environment_provider",
+    "SeaIceForecastProviderInterface",
+    "MockSeaIceProvider",
+    "IceKNNSeaIceProvider",
+    "get_sea_ice_provider",
 ]
+

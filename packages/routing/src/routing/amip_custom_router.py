@@ -7,7 +7,7 @@ Produces 5 distinct route alternatives: SHORTEST, FASTEST, SAFEST, FUEL_EFFICIEN
 import heapq
 import math
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple, Optional, Set, Any
 from uuid import uuid4
 
 from domain.coordinates import GeoPoint
@@ -33,14 +33,32 @@ class AMIPCustomRouter:
         env_provider: Optional[EnvironmentalDataProviderInterface] = None,
         speed_model: Optional[VesselSpeedModel] = None,
         mode: str = "grid",
+        graph_type: str = "h3",
+        h3_resolution: int = 5,
+        risk_engine: Optional[Any] = None,
+        vessel_evaluator: Optional[Any] = None,
     ):
         self.env = env_provider or default_environment_provider
         self.speed_model = speed_model or VesselSpeedModel()
         self.mode = mode
+        self.graph_type = graph_type
+        self.h3_resolution = h3_resolution
         self.grid_router = AMIPGridRouter(
             env_provider=self.env,
             speed_model=self.speed_model,
+            graph_type=self.graph_type,
+            h3_resolution=self.h3_resolution,
+            risk_engine=risk_engine,
+            vessel_evaluator=vessel_evaluator,
         )
+
+    def _get_h3_id(self, lat: float, lon: float) -> str:
+        """Converts geographic coordinates to canonical H3 resolution-5 cell index."""
+        try:
+            import h3
+            return h3.latlng_to_cell(lat, lon, self.h3_resolution)
+        except Exception:
+            return f"h3_res{self.h3_resolution}_{round(lat, 2)}_{round(lon, 2)}"
 
     def is_in_avoidance_zone(self, point: GeoPoint, avoidance_zones: Optional[List[AvoidanceZone]]) -> bool:
         """Check if a coordinate falls inside any active user-defined avoidance zone."""
@@ -157,7 +175,7 @@ class AMIPCustomRouter:
                 local_risk=0.05,
                 ice_concentration=env_0["sea_ice_concentration"],
                 bathymetry_depth_m=env_0["bathymetry_depth_m"],
-                grid_cell_id=f"grid_100_r{int(abs(origin.latitude))}_c{int(abs(origin.longitude))}",
+                grid_cell_id=self._get_h3_id(origin.latitude, origin.longitude),
             )
         )
 
@@ -245,7 +263,7 @@ class AMIPCustomRouter:
                     local_risk=round(local_risk, 3),
                     ice_concentration=round(sic, 3),
                     bathymetry_depth_m=env_state["bathymetry_depth_m"],
-                    grid_cell_id=f"grid_100_r{int(abs(candidate_pt.latitude))}_c{int(abs(candidate_pt.longitude))}",
+                    grid_cell_id=self._get_h3_id(candidate_pt.latitude, candidate_pt.longitude),
                 )
             )
             prev_pt = candidate_pt
@@ -278,12 +296,44 @@ class AMIPCustomRouter:
             RouteObjective.BALANCED: "Multi-criteria Pareto compromise balancing time, fuel burn, and navigational safety.",
         }.get(objective, "Multi-objective optimized Antarctic route.")
 
+        cells = []
+        try:
+            import h3
+            cells = [h3.latlng_to_cell(wp.point.latitude, wp.point.longitude, 5) for wp in waypoints if wp.point]
+        except Exception:
+            cells = [wp.grid_cell_id for wp in waypoints if wp.grid_cell_id]
+
+        segments = []
+        for s_idx in range(1, len(waypoints)):
+            w_curr = waypoints[s_idx]
+            segments.append({
+                "sequence": s_idx,
+                "from_cell": cells[s_idx - 1] if s_idx - 1 < len(cells) else None,
+                "to_cell": cells[s_idx] if s_idx < len(cells) else None,
+                "distance_nm": w_curr.leg_distance_nm,
+                "speed_over_ground_knots": w_curr.speed_knots,
+                "composite_risk": w_curr.local_risk,
+                "sea_ice_concentration": w_curr.ice_concentration,
+                "bathymetry_depth_m": w_curr.bathymetry_depth_m,
+            })
+
+        diagnostics = {
+            "mode": "corridor_fallback",
+            "total_cells": len(cells),
+            "total_distance_nm": round(cum_dist, 1),
+            "total_fuel_tonnes": round(cum_fuel, 1),
+            "total_duration_hours": round(total_duration_hours, 1),
+        }
+
         return RouteAlternative(
             route_id=f"route-{uuid4().hex[:8]}",
             objective=objective,
             departure_time=departure_time,
             metrics=metrics,
             waypoints=waypoints,
+            cells=cells,
+            segments=segments,
+            diagnostics=diagnostics,
             explanation=explanation,
             is_mock=True,
         )
