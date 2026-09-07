@@ -1,0 +1,100 @@
+{
+  "validation_timestamp": "2026-09-07T13:51:08.938521+00:00",
+  "h3_resolution": 5,
+  "total_checks": 25,
+  "passed_checks": 25,
+  "all_passed": true,
+  "checks": {
+    "1_every_h3_id_valid": {
+      "passed": true,
+      "sample_size": 1000
+    },
+    "2_configured_resolution": {
+      "passed": true,
+      "configured_res": 5
+    },
+    "3_no_duplicate_cell_ids": {
+      "passed": true,
+      "total_cells": 2000
+    },
+    "4_static_geometry_valid": {
+      "passed": true
+    },
+    "5_domain_coverage": {
+      "passed": true,
+      "has_antarctic": true,
+      "has_corridor": true
+    },
+    "6_fractions_range_valid": {
+      "passed": true
+    },
+    "7_fractions_consistency": {
+      "passed": true
+    },
+    "8_gebco_positive_depth_sign": {
+      "passed": true,
+      "convention": "depth_m > 0"
+    },
+    "9_cmems_vector_aggregation": {
+      "passed": true
+    },
+    "10_ecmwf_vector_aggregation": {
+      "passed": true
+    },
+    "11_circular_wave_direction": {
+      "passed": true,
+      "result": 360.0,
+      "expected": 0.0
+    },
+    "12_nsidc_invalid_pixel_masking": {
+      "passed": true,
+      "sic_mean": 55.0
+    },
+    "13_all_73_iceberg_ids_appear": {
+      "passed": true,
+      "distinct_ids_found": 73
+    },
+    "14_trajectory_points_map_to_h3": {
+      "passed": true,
+      "total_points": 812618
+    },
+    "15_hazard_references_valid_h3": {
+      "passed": true
+    },
+    "16_static_dynamic_joins_lossless": {
+      "passed": true
+    },
+    "17_time_index_monotonic": {
+      "passed": true,
+      "steps_count": 29
+    },
+    "18_missing_not_equal_to_zero": {
+      "passed": true
+    },
+    "19_provenance_exists": {
+      "passed": true,
+      "sources_tracked": 8
+    },
+    "20_resolution_configurability": {
+      "passed": true
+    },
+    "21_geometry_lookup_deterministic": {
+      "passed": true
+    },
+    "22_latlon_round_trip_tolerance": {
+      "passed": true,
+      "distance_deg": 0.0809
+    },
+    "23_neighbor_relationships_valid": {
+      "passed": true,
+      "disk_size": 7
+    },
+    "24_no_accidental_global_generation": {
+      "passed": true,
+      "cell_count": 2000
+    },
+    "25_frontend_package_completeness": {
+      "passed": true
+    }
+  }
+}

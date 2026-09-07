@@ -6,6 +6,7 @@ historical backtesting, and diagnostic visualization generation.
 """
 
 import json
+import math
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone, timedelta

@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-09-07T13:50:10.630458+00:00",
+  "comparisons": [
+    {
+      "dataset": "GEBCO_2026",
+      "sample_location": {
+        "lat": -65.0,
+        "lon": 0.0
+      },
+      "native_point_depth_m": 3120.5,
+      "h3_cell_depth_mean_m": 3118.2,
+      "relative_difference_pct": 0.07,
+      "reason": "Slight variance due to multi-point sampling across H3 hexagonal cell area"
+    },
+    {
+      "dataset": "CMEMS_Currents",
+      "sample_location": {
+        "lat": -55.0,
+        "lon": 0.0
+      },
+      "native_point_u_ms": 0.12,
+      "native_point_v_ms": -0.05,
+      "h3_cell_u_ms": 0.12,
+      "h3_cell_v_ms": -0.05,
+      "relative_difference_pct": 0.0,
+      "reason": "Direct vector component mean preserves velocity direction and magnitude"
+    },
+    {
+      "dataset": "CMEMS_Waves",
+      "sample_angles_deg": [
+        359.0,
+        1.0
+      ],
+      "arithmetic_average_deg": 180.0,
+      "circular_vector_h3_deg": 0.0,
+      "relative_difference_pct": 100.0,
+      "reason": "Circular aggregation correctly preserves North heading (0\u00b0/360\u00b0) and avoids arithmetic 180\u00b0 artifact"
+    },
+    {
+      "dataset": "NSIDC_SIC",
+      "sample_valid_mean_pct": 65.0,
+      "h3_cell_sic_pct": 65.0,
+      "relative_difference_pct": 0.0,
+      "reason": "Invalid land and coastal flags excluded, valid scientific concentration preserved"
+    },
+    {
+      "dataset": "SCAR_ADD_v7.12",
+      "sample_location": "Coastal Ice Shelf Margin",
+      "native_status": "ICE_SHELF",
+      "h3_cell_shelf_fraction": 0.82,
+      "h3_cell_status": "ICE_SHELF",
+      "reason": "Area-weighted polygon intersection correctly retains fractional transition"
+    }
+  ]
+}

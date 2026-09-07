@@ -1,0 +1,17 @@
+{
+  "h3_resolution": 5,
+  "total_cells": 2000,
+  "mapping_duration_sec": 17.95,
+  "scar_add_release": "SCAR ADD v7.12",
+  "gebco_release": "GEBCO_2026 Sub-Ice Antarctic Bathymetry",
+  "bathymetry_convention": "positive water depth (depth_m > 0)",
+  "geographic_blocking_threshold": 0.5,
+  "status_distribution": {
+    "OPEN_OCEAN": 1790,
+    "LAND": 182,
+    "ICE_SHELF": 16,
+    "MIXED": 12
+  },
+  "blocked_cells_count": 198,
+  "ocean_cells_count": 1790
+}

@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-09-07T13:50:10.646929+00:00",
+  "h3_resolution": 5,
+  "point_to_cell_latency_us": 0.45,
+  "cell_to_polygon_latency_us": 11.46,
+  "point_to_cell_throughput_queries_per_sec": 2215457,
+  "memory_per_cell_bytes": 120
+}

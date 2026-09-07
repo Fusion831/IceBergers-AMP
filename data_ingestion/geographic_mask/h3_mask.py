@@ -7,6 +7,7 @@ per H3 cell using spatial polygon intersections in native EPSG:3031 projection.
 from typing import List, Dict, Any, Optional, Union, Sequence
 import h3
 import pyproj
+import shapely
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 import geopandas as gpd
@@ -122,9 +123,11 @@ class H3GeographicMaskAggregator:
             poly = self.mask.geometries[idx]
             surf_str = self.mask.surfaces[idx]
             if surf_str in surface_areas:
-                inter = cell_poly.intersection(poly)
-                if not inter.is_empty:
-                    surface_areas[surf_str] += inter.area
+                clipped = shapely.clip_by_rect(poly, *cell_poly.bounds)
+                if not clipped.is_empty:
+                    inter = cell_poly.intersection(clipped)
+                    if not inter.is_empty:
+                        surface_areas[surf_str] += inter.area
 
         land_f = min(1.0, max(0.0, surface_areas["land"] / cell_area))
         ice_shelf_f = min(1.0, max(0.0, surface_areas["ice shelf"] / cell_area))

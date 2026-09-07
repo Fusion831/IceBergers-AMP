@@ -31,11 +31,13 @@ htmlcov/
 # Local Data & Artifacts (keep demo data, ignore large raw/processed caches)
 data/processed/
 data/raw/
+data/antarctica/**/*.parquet
 !data/demo/
 !data/validation/
 *.nc
 *.tmp.nc
 *.dodsrc
+frontend/src/data/*.json
 
 # Environment Variables
 .env
