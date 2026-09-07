@@ -15,9 +15,10 @@ build/
 htmlcov/
 
 # Local data & artifacts (keep demo data, ignore large processed caches)
-data/processed/*.zarr
-data/raw/*
+data/processed/
+data/raw/
 !data/demo/
+!data/validation/
 
 # Environment Variables
 .env
