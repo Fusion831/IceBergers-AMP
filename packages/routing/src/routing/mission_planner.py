@@ -81,6 +81,12 @@ class MissionPlanner:
                         local_risk=wp.local_risk,
                         ice_concentration=wp.ice_concentration,
                         bathymetry_depth_m=wp.bathymetry_depth_m,
+                        grid_cell_id=wp.grid_cell_id,
+                        current_u_ms=wp.current_u_ms,
+                        current_v_ms=wp.current_v_ms,
+                        wind_speed_ms=wp.wind_speed_ms,
+                        wave_height_m=wp.wave_height_m,
+                        fuel_rate_tonnes_per_day=wp.fuel_rate_tonnes_per_day,
                     )
                 )
                 all_risks.append(wp.local_risk)

@@ -18,6 +18,14 @@ from routing.mission_planner import (
     MissionPlanner,
 )
 
+from routing.grid_graph import (
+    EnvironmentalGridGraph,
+    EnvironmentalGridNode,
+)
+from routing.grid_router import (
+    AMIPGridRouter,
+)
+
 __all__ = [
     "NavalArchitectureFuelModel",
     "default_fuel_model",
@@ -27,4 +35,8 @@ __all__ = [
     "SegmentSpeedResult",
     "AMIPCustomRouter",
     "MissionPlanner",
+    "EnvironmentalGridGraph",
+    "EnvironmentalGridNode",
+    "AMIPGridRouter",
 ]
+

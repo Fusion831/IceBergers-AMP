@@ -28,6 +28,12 @@ class RouteWaypoint(BaseModel):
     cumulative_fuel_tonnes: Optional[float] = 0.0
     ice_concentration: Optional[float] = 0.0
     bathymetry_depth_m: Optional[float] = None
+    grid_cell_id: Optional[str] = Field(default=None, description="Identifier of the discrete environmental grid cell")
+    current_u_ms: Optional[float] = Field(default=None, description="Eastward ocean current at waypoint")
+    current_v_ms: Optional[float] = Field(default=None, description="Northward ocean current at waypoint")
+    wind_speed_ms: Optional[float] = Field(default=None, description="Surface wind speed in m/s")
+    wave_height_m: Optional[float] = Field(default=None, description="Significant wave height in meters")
+    fuel_rate_tonnes_per_day: Optional[float] = Field(default=None, description="Fuel burn rate at segment speed in t/day")
 
     @model_validator(mode="after")
     def sync_waypoint(self) -> "RouteWaypoint":

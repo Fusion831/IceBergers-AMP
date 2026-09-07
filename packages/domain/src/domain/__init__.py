@@ -34,6 +34,8 @@ from domain.environment import (
     GridSlice,
     PointEnvironment,
     EnvironmentalState,
+    EnvironmentCell,
+    EnvironmentCellCollection,
 )
 from domain.sea_ice import (
     SeaIceForecast,

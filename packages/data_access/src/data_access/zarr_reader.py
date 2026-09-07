@@ -69,14 +69,18 @@ class ZarrReader:
         ice_edge_lat = -66.0 + (seasonal_phase * 6.0)
 
         if variable == "sea_ice_concentration":
-            # 0.0 north of ice edge, transitions to high concentration (up to 0.95) south
+            # Baseline sigmoid centred on the seasonal ice edge
             delta = ice_edge_lat - lat_grid
             sic = 1.0 / (1.0 + np.exp(-0.8 * delta))
-            # Smooth mask north of ice edge
+            # Mask open water north of the edge
             sic[lat_grid > ice_edge_lat] = 0.0
-            # Add subtle deterministic spatial perturbation
-            perturb = 0.05 * np.sin(np.radians(lon_grid * 4.0)) * np.cos(np.radians(lat_grid * 2.0))
-            sic = np.clip(sic + perturb, 0.0, 1.0)
+            # Realistic zonal asymmetry (~±20%):
+            # Weddell Sea (lon ~ -60 to 0) retains more ice; East Antarctica
+            # (lon ~ 60-120) has clearer summer leads.
+            zonal = 0.20 * np.cos(np.radians(lon_grid - 30.0))
+            # Fine-scale spatial perturbation for realistic patchiness
+            perturb = 0.08 * np.sin(np.radians(lon_grid * 3.0)) * np.cos(np.radians(lat_grid * 2.0))
+            sic = np.clip(sic + zonal + perturb, 0.0, 1.0)
             return sic
 
         elif variable == "sic_uncertainty":

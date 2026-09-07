@@ -1,11 +1,12 @@
 """Environment Service coordinating data access, time-slider slicing, and point queries."""
+from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 import numpy as np
 from core.config import settings
 from domain.coordinates import BoundingBox, GridSpec, GeoPoint
-from domain.environment import GridSlice, PointEnvironment
+from domain.environment import GridSlice, PointEnvironment, EnvironmentCell, EnvironmentCellCollection
 from data_access.zarr_reader import default_zarr_reader
 
 
@@ -135,5 +136,73 @@ class EnvironmentService:
     def get_point_environment(self, point: GeoPoint, timestamp: datetime) -> PointEnvironment:
         return self.get_point(point, timestamp)
 
+    def get_cells(
+        self,
+        valid_time: datetime,
+        bbox: Optional[BoundingBox] = None,
+        resolution_deg: float = 1.0,
+    ) -> EnvironmentCellCollection:
+        """Retrieve discrete computational environmental cells for map and time-slider rendering."""
+        from domain.environment import EnvironmentCellCollection
+        from routing.grid_graph import EnvironmentalGridGraph
+
+        bounds = bbox or BoundingBox(
+            min_latitude=-75.0,
+            max_latitude=-50.0,
+            min_longitude=0.0,
+            max_longitude=80.0,
+        )
+        graph = EnvironmentalGridGraph(bounds=bounds, resolution_deg=resolution_deg)
+        cells = [graph.to_environment_cell(c_id, valid_time) for c_id in graph.nodes.keys()]
+
+        return EnvironmentCellCollection(
+            valid_time=valid_time,
+            resolution_deg=resolution_deg,
+            bounds=bounds,
+            total_cells=len(cells),
+            cells=cells,
+        )
+
+    def get_cell_by_id(
+        self,
+        cell_id: str,
+        valid_time: datetime,
+        resolution_deg: float = 1.0,
+    ) -> Optional[EnvironmentCell]:
+        """Inspect detailed physical state and provenance for a single discrete grid cell."""
+        from domain.environment import EnvironmentCell
+        from routing.grid_graph import EnvironmentalGridGraph
+
+        # Parse row, col from grid_{res}_r{row}_c{col}
+        try:
+            parts = cell_id.split("_")
+            r_str = [p for p in parts if p.startswith("r")][0]
+            c_str = [p for p in parts if p.startswith("c")][0]
+            row = int(r_str[1:])
+            col = int(c_str[1:])
+            res = float(parts[1]) / 100.0 if len(parts) >= 4 else resolution_deg
+        except Exception:
+            row, col, res = 0, 0, resolution_deg
+
+        # Reconstruct bounds containing this cell
+        min_lat = -78.0
+        min_lon = -20.0
+        lat = min_lat + row * res
+        lon = min_lon + col * res
+        bounds = BoundingBox(
+            min_latitude=lat - res,
+            max_latitude=lat + res,
+            min_longitude=lon - res,
+            max_longitude=lon + res,
+        )
+        graph = EnvironmentalGridGraph(bounds=bounds, resolution_deg=res)
+        found_id = graph.find_closest_node_id(GeoPoint(latitude=lat, longitude=lon))
+        if found_id in graph.nodes:
+            cell = graph.to_environment_cell(found_id, valid_time)
+            cell.cell_id = cell_id
+            return cell
+        return None
+
 
 default_environment_service = EnvironmentService()
+

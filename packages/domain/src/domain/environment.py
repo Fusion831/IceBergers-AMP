@@ -116,3 +116,40 @@ class EnvironmentalState(BaseModel):
     current_v_ref: Optional[str] = None
     wave_height_ref: Optional[str] = None
     bathymetry_ref: Optional[str] = None
+
+
+class EnvironmentCell(BaseModel):
+    """Discrete computational environmental grid cell with complete multi-modal physical attribution."""
+    cell_id: str = Field(..., description="Structured cell identifier: grid_{res}_{row}_{col}")
+    alias: Optional[str] = Field(default=None, description="Human-readable alias if a designated target, e.g. S17, BHARATI")
+    point: GeoPoint = Field(..., description="Cell centroid coordinate")
+    row: int = Field(default=0, ge=0)
+    col: int = Field(default=0, ge=0)
+    resolution_deg: float = Field(default=1.0, gt=0.0)
+    timestamp: datetime = Field(..., description="Valid timestamp for this physical state")
+    sea_ice_concentration: float = Field(default=0.0, ge=0.0, le=1.0)
+    sea_ice_uncertainty: float = Field(default=0.05, ge=0.0, le=1.0)
+    current_u_ms: float = Field(default=0.0, description="Eastward ocean velocity in m/s")
+    current_v_ms: float = Field(default=0.0, description="Northward ocean velocity in m/s")
+    wind_u_ms: float = Field(default=0.0, description="10m eastward wind in m/s")
+    wind_v_ms: float = Field(default=0.0, description="10m northward wind in m/s")
+    wind_speed_ms: float = Field(default=0.0, ge=0.0)
+    wave_height_m: float = Field(default=2.5, ge=0.0)
+    wave_period_s: float = Field(default=8.0, ge=0.0)
+    bathymetry_depth_m: float = Field(default=3500.0)
+    iceberg_hazard: float = Field(default=0.05, ge=0.0, le=1.0)
+    composite_risk: float = Field(default=0.10, ge=0.0, le=1.0)
+    is_land: bool = Field(default=False)
+    is_ice_shelf: bool = Field(default=False)
+    is_navigable: bool = Field(default=True)
+    provenance: str = Field(default="MOCK / SYNTHETIC")
+
+
+class EnvironmentCellCollection(BaseModel):
+    """Sub-grid collection of computational cells for a visible map region and timestamp."""
+    valid_time: datetime
+    resolution_deg: float
+    bounds: BoundingBox
+    total_cells: int
+    cells: List[EnvironmentCell]
+

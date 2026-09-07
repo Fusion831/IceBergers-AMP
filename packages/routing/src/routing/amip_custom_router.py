@@ -18,21 +18,29 @@ from domain.route import RouteAlternative, RouteWaypoint, RouteMetrics
 from data_access.spatial import haversine_distance_nm
 from data_access.environment_provider import default_environment_provider, EnvironmentalDataProviderInterface
 from routing.speed_model import VesselSpeedModel
+from routing.grid_router import AMIPGridRouter
 
 
 class AMIPCustomRouter:
     """
     Native discrete graph router for Antarctic mission planning.
     Calculates 4D spatiotemporal vessel trajectories with physics-derived speeds.
+    Operates in discrete grid graph mode with corridor fallback.
     """
 
     def __init__(
         self,
         env_provider: Optional[EnvironmentalDataProviderInterface] = None,
         speed_model: Optional[VesselSpeedModel] = None,
+        mode: str = "grid",
     ):
         self.env = env_provider or default_environment_provider
         self.speed_model = speed_model or VesselSpeedModel()
+        self.mode = mode
+        self.grid_router = AMIPGridRouter(
+            env_provider=self.env,
+            speed_model=self.speed_model,
+        )
 
     def is_in_avoidance_zone(self, point: GeoPoint, avoidance_zones: Optional[List[AvoidanceZone]]) -> bool:
         """Check if a coordinate falls inside any active user-defined avoidance zone."""
@@ -67,7 +75,41 @@ class AMIPCustomRouter:
     ) -> RouteAlternative:
         """
         Generate an optimized route leg between origin and destination under a chosen objective.
+        Attempts discrete 4D grid search first; falls back gracefully to corridor evaluator.
         """
+        if self.mode == "grid":
+            grid_route = self.grid_router.optimize_leg(
+                origin=origin,
+                destination=destination,
+                departure_time=departure_time,
+                vessel=vessel,
+                objective=objective,
+                avoidance_zones=avoidance_zones,
+            )
+            if grid_route is not None:
+                return grid_route
+
+        return self._optimize_corridor_fallback(
+            origin=origin,
+            destination=destination,
+            departure_time=departure_time,
+            vessel=vessel,
+            objective=objective,
+            avoidance_zones=avoidance_zones,
+            intermediate_targets=intermediate_targets,
+        )
+
+    def _optimize_corridor_fallback(
+        self,
+        origin: GeoPoint,
+        destination: GeoPoint,
+        departure_time: datetime,
+        vessel: VesselProfile,
+        objective: RouteObjective,
+        avoidance_zones: Optional[List[AvoidanceZone]] = None,
+        intermediate_targets: Optional[List[MissionTarget]] = None,
+    ) -> RouteAlternative:
+        """Corridor-guided physics evaluation fallback reference."""
         # Objective cost weights: [w_dist, w_time, w_fuel, w_risk]
         if objective == RouteObjective.SHORTEST:
             w_dist, w_time, w_fuel, w_risk = 1.0, 0.0, 0.0, 0.0
@@ -115,6 +157,7 @@ class AMIPCustomRouter:
                 local_risk=0.05,
                 ice_concentration=env_0["sea_ice_concentration"],
                 bathymetry_depth_m=env_0["bathymetry_depth_m"],
+                grid_cell_id=f"grid_100_r{int(abs(origin.latitude))}_c{int(abs(origin.longitude))}",
             )
         )
 
@@ -202,6 +245,7 @@ class AMIPCustomRouter:
                     local_risk=round(local_risk, 3),
                     ice_concentration=round(sic, 3),
                     bathymetry_depth_m=env_state["bathymetry_depth_m"],
+                    grid_cell_id=f"grid_100_r{int(abs(candidate_pt.latitude))}_c{int(abs(candidate_pt.longitude))}",
                 )
             )
             prev_pt = candidate_pt
