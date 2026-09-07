@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-09-07T15:04:08Z",
+  "policy_tested": "AMIP_POC_BASELINE",
+  "policy_version": "1.0.0",
+  "results": {
+    "sea_ice_sensitivity": {
+      "monotonic": true,
+      "steps": [
+        {
+          "sic": 0.0,
+          "sea_ice_risk": 0.005,
+          "composite_risk": 0.0243
+        },
+        {
+          "sic": 0.02,
+          "sea_ice_risk": 0.065,
+          "composite_risk": 0.0452
+        },
+        {
+          "sic": 0.05,
+          "sea_ice_risk": 0.155,
+          "composite_risk": 0.0767
+        },
+        {
+          "sic": 0.1,
+          "sea_ice_risk": 0.33,
+          "composite_risk": 0.138
+        },
+        {
+          "sic": 0.15,
+          "sea_ice_risk": 0.505,
+          "composite_risk": 0.1992
+        },
+        {
+          "sic": 0.2,
+          "sea_ice_risk": 0.575,
+          "composite_risk": 0.2237
+        },
+        {
+          "sic": 0.35,
+          "sea_ice_risk": 0.785,
+          "composite_risk": 0.2973
+        },
+        {
+          "sic": 0.6,
+          "sea_ice_risk": 0.905,
+          "composite_risk": 0.3392
+        }
+      ]
+    },
+    "iceberg_hazard_sensitivity": {
+      "monotonic": true,
+      "steps": [
+        {
+          "iceberg_hazard": 0.0,
+          "iceberg_risk": 0.0,
+          "composite_risk": 0.03
+        },
+        {
+          "iceberg_hazard": 0.05,
+          "iceberg_risk": 0.075,
+          "composite_risk": 0.0488
+        },
+        {
+          "iceberg_hazard": 0.15,
+          "iceberg_risk": 0.2875,
+          "composite_risk": 0.1019
+        },
+        {
+          "iceberg_hazard": 0.3,
+          "iceberg_risk": 0.55,
+          "composite_risk": 0.1675
+        },
+        {
+          "iceberg_hazard": 0.5,
+          "iceberg_risk": 0.75,
+          "composite_risk": 0.2175
+        },
+        {
+          "iceberg_hazard": 0.75,
+          "iceberg_risk": 0.9062,
+          "composite_risk": 0.2566
+        },
+        {
+          "iceberg_hazard": 1.0,
+          "iceberg_risk": 1.0,
+          "composite_risk": 0.28
+        }
+      ]
+    },
+    "wave_sensitivity": {
+      "monotonic": true,
+      "steps": [
+        {
+          "wave_height_m": 0.5,
+          "wave_risk": 0.02,
+          "composite_risk": 0.0255
+        },
+        {
+          "wave_height_m": 2.0,
+          "wave_risk": 0.08,
+          "composite_risk": 0.0345
+        },
+        {
+          "wave_height_m": 3.5,
+          "wave_risk": 0.2667,
+          "composite_risk": 0.0625
+        },
+        {
+          "wave_height_m": 5.0,
+          "wave_risk": 0.525,
+          "composite_risk": 0.1013
+        },
+        {
+          "wave_height_m": 6.5,
+          "wave_risk": 0.75,
+          "composite_risk": 0.135
+        },
+        {
+          "wave_height_m": 8.0,
+          "wave_risk": 0.9,
+          "composite_risk": 0.1575
+        },
+        {
+          "wave_height_m": 10.0,
+          "wave_risk": 0.95,
+          "composite_risk": 0.165
+        }
+      ]
+    }
+  },
+  "all_monotonic_tests_passed": true
+}

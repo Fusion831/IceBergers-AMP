@@ -1,0 +1,229 @@
+{
+  "policy_name": "AMIP_POC_BASELINE",
+  "policy_version": "1.0.0",
+  "description": "Baseline Prototype Risk Evaluation Policy for AMIP Antarctic operations. Assumed parameters are strictly prototype heuristics, NOT certified maritime navigation standards.",
+  "status": "POC_PROTOTYPE",
+  "disclaimer": "This baseline policy provides relative environmental risk indices for route evaluation and operational awareness. It does not constitute official NCPOR navigation guidance or certified maritime safety certification.",
+  "component_weights": {
+    "sea_ice": {
+      "weight": 0.35,
+      "classification": "USER_CONFIGURED",
+      "notes": "Primary navigation constraint for non-ice-strengthened vessel"
+    },
+    "iceberg": {
+      "weight": 0.25,
+      "classification": "USER_CONFIGURED",
+      "notes": "Ensemble occupancy hazard proxy from 73 tracked icebergs"
+    },
+    "waves": {
+      "weight": 0.15,
+      "classification": "USER_CONFIGURED",
+      "notes": "Southern Ocean rough sea state penalty"
+    },
+    "wind": {
+      "weight": 0.10,
+      "classification": "USER_CONFIGURED",
+      "notes": "Gale/storm force 10m wind penalty"
+    },
+    "bathymetry": {
+      "weight": 0.05,
+      "classification": "USER_CONFIGURED",
+      "notes": "Under-keel clearance soft warning cost"
+    },
+    "current": {
+      "weight": 0.05,
+      "classification": "USER_CONFIGURED",
+      "notes": "Adverse current velocity penalty"
+    },
+    "confidence": {
+      "weight": 0.05,
+      "classification": "USER_CONFIGURED",
+      "notes": "Data quality / observation uncertainty penalty"
+    }
+  },
+  "hard_constraints": {
+    "respect_scar_add_mask": {
+      "value": true,
+      "classification": "PUBLISHED",
+      "source": "SCAR Antarctic Digital Database v7.12",
+      "rule_type": "HARD_BLOCK",
+      "blocked_statuses": [
+        "LAND",
+        "ICE_SHELF",
+        "ICE_TONGUE",
+        "RUMPLE"
+      ]
+    },
+    "enforce_bathymetric_grounding": {
+      "value": true,
+      "classification": "USER_CONFIGURED",
+      "source": "GEBCO 2026 sub-ice bathymetry vs vessel draft",
+      "rule_type": "HARD_BLOCK",
+      "notes": "Blocks cells where depth <= vessel operating draft"
+    },
+    "enforce_vessel_sic_limit": {
+      "value": true,
+      "classification": "USER_CONFIGURED",
+      "rule_type": "HARD_BLOCK",
+      "notes": "Blocks cells where SIC exceeds vessel max operational capability if configured in vessel profile"
+    },
+    "enforce_wave_limit": {
+      "value": false,
+      "classification": "USER_CONFIGURED",
+      "rule_type": "SOFT_WARNING",
+      "notes": "Severe waves trigger warnings and soft penalties by default, rather than hard network disconnection"
+    }
+  },
+  "thresholds": {
+    "sea_ice": {
+      "safe_fraction": {
+        "value": 0.0,
+        "classification": "USER_CONFIGURED",
+        "unit": "fraction [0.0, 1.0]"
+      },
+      "elevated_fraction": {
+        "value": 0.05,
+        "classification": "USER_CONFIGURED",
+        "unit": "fraction [0.0, 1.0]"
+      },
+      "high_fraction": {
+        "value": 0.15,
+        "classification": "USER_CONFIGURED",
+        "unit": "fraction [0.0, 1.0]"
+      },
+      "critical_fraction": {
+        "value": 0.40,
+        "classification": "USER_CONFIGURED",
+        "unit": "fraction [0.0, 1.0]"
+      },
+      "uncertainty_penalty_scaling": {
+        "value": 0.50,
+        "classification": "ASSUMED",
+        "notes": "Modulation factor scaling risk when SIC uncertainty is high"
+      }
+    },
+    "iceberg": {
+      "safe_hazard": {
+        "value": 0.02,
+        "classification": "DERIVED",
+        "unit": "hazard proxy [0.0, 1.0]"
+      },
+      "elevated_hazard": {
+        "value": 0.10,
+        "classification": "DERIVED",
+        "unit": "hazard proxy [0.0, 1.0]"
+      },
+      "high_hazard": {
+        "value": 0.30,
+        "classification": "DERIVED",
+        "unit": "hazard proxy [0.0, 1.0]"
+      },
+      "critical_hazard": {
+        "value": 0.60,
+        "classification": "DERIVED",
+        "unit": "hazard proxy [0.0, 1.0]"
+      }
+    },
+    "waves": {
+      "safe_hs_m": {
+        "value": 2.5,
+        "classification": "ASSUMED",
+        "unit": "m"
+      },
+      "elevated_hs_m": {
+        "value": 4.0,
+        "classification": "USER_CONFIGURED",
+        "unit": "m"
+      },
+      "high_hs_m": {
+        "value": 6.0,
+        "classification": "ASSUMED",
+        "unit": "m"
+      },
+      "critical_hs_m": {
+        "value": 8.0,
+        "classification": "ASSUMED",
+        "unit": "m"
+      }
+    },
+    "wind": {
+      "safe_speed_ms": {
+        "value": 10.0,
+        "classification": "ASSUMED",
+        "unit": "m/s",
+        "notes": "~19 knots, Fresh Breeze"
+      },
+      "elevated_speed_ms": {
+        "value": 15.0,
+        "classification": "ASSUMED",
+        "unit": "m/s",
+        "notes": "~29 knots, Near Gale"
+      },
+      "high_speed_ms": {
+        "value": 20.0,
+        "classification": "ASSUMED",
+        "unit": "m/s",
+        "notes": "~39 knots, Gale Force 8"
+      },
+      "critical_speed_ms": {
+        "value": 28.0,
+        "classification": "ASSUMED",
+        "unit": "m/s",
+        "notes": "~54 knots, Storm Force 10"
+      }
+    },
+    "bathymetry": {
+      "warning_depth_margin_m": {
+        "value": 10.0,
+        "classification": "USER_CONFIGURED",
+        "unit": "m",
+        "notes": "Under-keel clearance triggering WARNING status"
+      },
+      "critical_depth_margin_m": {
+        "value": 3.0,
+        "classification": "USER_CONFIGURED",
+        "unit": "m",
+        "notes": "Under-keel clearance triggering CRITICAL status"
+      },
+      "clearance_requirement_m": {
+        "value": 3.0,
+        "classification": "USER_CONFIGURED",
+        "unit": "m",
+        "notes": "Default safety margin required below vessel draft"
+      }
+    },
+    "current": {
+      "neutral_speed_ms": {
+        "value": 0.25,
+        "classification": "ASSUMED",
+        "unit": "m/s"
+      },
+      "strong_speed_ms": {
+        "value": 1.0,
+        "classification": "ASSUMED",
+        "unit": "m/s"
+      }
+    }
+  },
+  "confidence_rules": {
+    "missing_variable_penalty": {
+      "value": 0.15,
+      "classification": "ASSUMED",
+      "notes": "Confidence reduction per missing physical variable"
+    },
+    "mock_data_penalty": {
+      "value": 0.25,
+      "classification": "ASSUMED",
+      "notes": "Confidence reduction if physical field uses MOCK provider"
+    },
+    "extended_projection_penalty": {
+      "value": 0.20,
+      "classification": "ASSUMED",
+      "notes": "Confidence reduction if forecast/projection exceeds horizon"
+    },
+    "min_confidence_floor": {
+      "value": 0.05,
+      "classification": "ASSUMED"
+    }
+  }
+}

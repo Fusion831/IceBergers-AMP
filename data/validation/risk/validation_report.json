@@ -1,0 +1,936 @@
+{
+  "timestamp": "2026-09-07T15:04:08Z",
+  "dataset_evaluated": "C:\\Users\\daksh\\Projects\\SIH2026\\data\\antarctica\\environment\\environment_cells.parquet",
+  "total_cells_in_dataset": 2000,
+  "representative_cells_tested": 12,
+  "vessel_tested": "ORV Sagar Kanya",
+  "vessel_draft_m": 5.6,
+  "vessel_max_sic": 0.15,
+  "summary_statistics": {
+    "mean_risk": 0.1068,
+    "max_risk": 0.3717,
+    "min_risk": 0.0197,
+    "mean_confidence": 0.75,
+    "hard_blocked_count": 3,
+    "total_warnings": 15
+  },
+  "representative_cell_evaluations": [
+    {
+      "cell_id": "85db2447fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0389,
+        "confidence_score": 1.0,
+        "confidence_class": "HIGH"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.005,
+        "iceberg": 0.0,
+        "wave": 0.0936,
+        "wind": 0.231,
+        "current": 0.0,
+        "data_quality": 0.0
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": 0.0,
+        "sea_ice_percentage": 0.0,
+        "sea_ice_uncertainty_fraction": 0.05,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 2.34,
+        "wave_peak_period_s": 9.7,
+        "wind_speed_ms": 12.62,
+        "ocean_current_speed_ms": 0.23,
+        "ocean_current_direction_deg": 26.5,
+        "current_assistance_knots": null,
+        "water_depth_m": 4907.0,
+        "under_keel_clearance_m": 4901.4,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [],
+      "warning_codes": [],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "open_ocean_calm",
+      "hard_blocked": false,
+      "composite_risk": 0.0389,
+      "confidence_score": 1.0,
+      "confidence_class": "HIGH",
+      "sea_ice_risk": 0.005,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0936,
+      "wind_risk": 0.231,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 0
+    },
+    {
+      "cell_id": "85bd2563fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0809,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.3553,
+        "wind": 0.1265,
+        "current": 0.0,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 4.03,
+        "wave_peak_period_s": 12.8,
+        "wind_speed_ms": 10.53,
+        "ocean_current_speed_ms": 0.25,
+        "ocean_current_direction_deg": 100.7,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "open_ocean_rough_waves",
+      "hard_blocked": false,
+      "composite_risk": 0.0809,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.3553,
+      "wind_risk": 0.1265,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85bb75cbfffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.1053,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.15,
+        "wind": 0.6279,
+        "current": 0.1,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 2.8,
+        "wave_peak_period_s": 8.2,
+        "wind_speed_ms": 18.97,
+        "ocean_current_speed_ms": 0.4,
+        "ocean_current_direction_deg": 337.7,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "gale_wind",
+      "hard_blocked": false,
+      "composite_risk": 0.1053,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.15,
+      "wind_risk": 0.6279,
+      "current_risk": 0.1,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85b925affffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0343,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.0968,
+        "wind": 0.0478,
+        "current": 0.0,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 2.42,
+        "wave_peak_period_s": 12.2,
+        "wind_speed_ms": 4.78,
+        "ocean_current_speed_ms": 0.06,
+        "ocean_current_direction_deg": 337.4,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "elevated_sea_ice_fallback",
+      "hard_blocked": false,
+      "composite_risk": 0.0343,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0968,
+      "wind_risk": 0.0478,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85dd2087fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": true,
+        "block_reason": "Sea ice concentration (62.0%) exceeds vessel maximum operational limit (15.0%)",
+        "blocking_rule": "VESSEL_SEA_ICE_CAPABILITY_EXCEEDED"
+      },
+      "composite": {
+        "overall_risk": 0.3653,
+        "confidence_score": 0.85,
+        "confidence_class": "HIGH"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 1.0,
+        "iceberg": 0.0,
+        "wave": 0.0,
+        "wind": 0.0781,
+        "current": 0.0,
+        "data_quality": 0.15
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": 0.62,
+        "sea_ice_percentage": 62.0,
+        "sea_ice_uncertainty_fraction": 0.05,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": null,
+        "wave_peak_period_s": null,
+        "wind_speed_ms": 7.81,
+        "ocean_current_speed_ms": 0.06,
+        "ocean_current_direction_deg": 328.0,
+        "current_assistance_knots": null,
+        "water_depth_m": 5037.7,
+        "under_keel_clearance_m": 5032.1,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "CRITICAL_SEA_ICE",
+          "message": "Sea ice concentration (62.0%) exceeds vessel maximum operational limit (15.0%)",
+          "severity": "CRITICAL"
+        },
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: wave_height_m",
+          "severity": "INFO"
+        }
+      ],
+      "warning_codes": [
+        "CRITICAL_SEA_ICE",
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "critical_sea_ice",
+      "hard_blocked": true,
+      "composite_risk": 0.3653,
+      "confidence_score": 0.85,
+      "confidence_class": "HIGH",
+      "sea_ice_risk": 1.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0,
+      "wind_risk": 0.0781,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 2
+    },
+    {
+      "cell_id": "85ad049bfffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0673,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.2983,
+        "wind": 0.026,
+        "current": 0.1,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 3.69,
+        "wave_peak_period_s": 8.8,
+        "wind_speed_ms": 2.6,
+        "ocean_current_speed_ms": 0.36,
+        "ocean_current_direction_deg": 79.7,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "strong_current",
+      "hard_blocked": false,
+      "composite_risk": 0.0673,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.2983,
+      "wind_risk": 0.026,
+      "current_risk": 0.1,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85bf668bfffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0546,
+        "confidence_score": 0.85,
+        "confidence_class": "HIGH"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.1533,
+        "wind": 0.241,
+        "current": 0.0,
+        "data_quality": 0.15
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 2.82,
+        "wave_peak_period_s": 11.5,
+        "wind_speed_ms": 12.82,
+        "ocean_current_speed_ms": 0.04,
+        "ocean_current_direction_deg": 340.8,
+        "current_assistance_knots": null,
+        "water_depth_m": 4715.0,
+        "under_keel_clearance_m": 4709.4,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: sea_ice_concentration",
+          "severity": "INFO"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "deep_ocean",
+      "hard_blocked": false,
+      "composite_risk": 0.0546,
+      "confidence_score": 0.85,
+      "confidence_class": "HIGH",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.1533,
+      "wind_risk": 0.241,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85c322cffffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0197,
+        "confidence_score": 0.85,
+        "confidence_class": "HIGH"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.048,
+        "wind": 0.0503,
+        "current": 0.0,
+        "data_quality": 0.15
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 1.2,
+        "wave_peak_period_s": 8.8,
+        "wind_speed_ms": 5.03,
+        "ocean_current_speed_ms": 0.23,
+        "ocean_current_direction_deg": 149.6,
+        "current_assistance_knots": null,
+        "water_depth_m": 92.0,
+        "under_keel_clearance_m": 86.4,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: sea_ice_concentration",
+          "severity": "INFO"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "shelf_water",
+      "hard_blocked": false,
+      "composite_risk": 0.0197,
+      "confidence_score": 0.85,
+      "confidence_class": "HIGH",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.048,
+      "wind_risk": 0.0503,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85e123c7fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": true,
+        "block_reason": "Prohibited SCAR ADD geographic feature: LAND",
+        "blocking_rule": "SCAR_ADD_GEOGRAPHIC_MASK"
+      },
+      "composite": {
+        "overall_risk": 0.3717,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 1.0,
+        "bathymetric": 0.0,
+        "sea_ice": 1.0,
+        "iceberg": 0.0,
+        "wave": 0.0,
+        "wind": 0.0672,
+        "current": 0.0,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": 0.29,
+        "sea_ice_percentage": 29.0,
+        "sea_ice_uncertainty_fraction": 0.05,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": null,
+        "wave_peak_period_s": null,
+        "wind_speed_ms": 6.72,
+        "ocean_current_speed_ms": null,
+        "ocean_current_direction_deg": null,
+        "current_assistance_knots": null,
+        "water_depth_m": 189.8,
+        "under_keel_clearance_m": 184.2,
+        "geographic_status": "LAND",
+        "ocean_fraction": 0.234,
+        "land_fraction": 0.766,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "GEOGRAPHIC_BLOCK",
+          "message": "Prohibited SCAR ADD geographic feature: LAND",
+          "severity": "CRITICAL"
+        },
+        {
+          "code": "CRITICAL_SEA_ICE",
+          "message": "Sea ice concentration (29.0%) exceeds vessel maximum operational limit (15.0%)",
+          "severity": "CRITICAL"
+        },
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: wave_height_m, current_speed_ms",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "GEOGRAPHIC_BLOCK",
+        "CRITICAL_SEA_ICE",
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "blocked_land",
+      "hard_blocked": true,
+      "composite_risk": 0.3717,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 1.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0,
+      "wind_risk": 0.0672,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 1.0,
+      "warnings_count": 3
+    },
+    {
+      "cell_id": "85e558c7fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": true,
+        "block_reason": "Prohibited SCAR ADD geographic feature: ICE_SHELF",
+        "blocking_rule": "SCAR_ADD_GEOGRAPHIC_MASK"
+      },
+      "composite": {
+        "overall_risk": 0.0384,
+        "confidence_score": 0.55,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 1.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.0,
+        "wind": 0.159,
+        "current": 0.0,
+        "data_quality": 0.45
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": null,
+        "wave_peak_period_s": null,
+        "wind_speed_ms": 11.18,
+        "ocean_current_speed_ms": null,
+        "ocean_current_direction_deg": null,
+        "current_assistance_knots": null,
+        "water_depth_m": 685.9,
+        "under_keel_clearance_m": 680.3,
+        "geographic_status": "ICE_SHELF",
+        "ocean_fraction": 0.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 1.0
+      },
+      "warnings": [
+        {
+          "code": "GEOGRAPHIC_BLOCK",
+          "message": "Prohibited SCAR ADD geographic feature: ICE_SHELF",
+          "severity": "CRITICAL"
+        },
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: sea_ice_concentration, wave_height_m, current_speed_ms",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "GEOGRAPHIC_BLOCK",
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "blocked_ice_shelf",
+      "hard_blocked": true,
+      "composite_risk": 0.0384,
+      "confidence_score": 0.55,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0,
+      "wind_risk": 0.159,
+      "current_risk": 0.0,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 1.0,
+      "warnings_count": 2
+    },
+    {
+      "cell_id": "85bb28d7fffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0379,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.0584,
+        "wind": 0.0911,
+        "current": 0.1,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 1.46,
+        "wave_peak_period_s": 6.5,
+        "wind_speed_ms": 9.11,
+        "ocean_current_speed_ms": 0.3,
+        "ocean_current_direction_deg": 21.7,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "high_iceberg_hazard_fallback",
+      "hard_blocked": false,
+      "composite_risk": 0.0379,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.0584,
+      "wind_risk": 0.0911,
+      "current_risk": 0.1,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    },
+    {
+      "cell_id": "85ad049bfffffff",
+      "timestamp": "2024-01-01T00:00:00+00:00",
+      "feasibility": {
+        "hard_blocked": false,
+        "block_reason": null,
+        "blocking_rule": null
+      },
+      "composite": {
+        "overall_risk": 0.0673,
+        "confidence_score": 0.7,
+        "confidence_class": "MEDIUM"
+      },
+      "component_risks": {
+        "geographic": 0.0,
+        "bathymetric": 0.0,
+        "sea_ice": 0.0,
+        "iceberg": 0.0,
+        "wave": 0.2983,
+        "wind": 0.026,
+        "current": 0.1,
+        "data_quality": 0.3
+      },
+      "physical_forcings": {
+        "sea_ice_concentration_fraction": null,
+        "sea_ice_percentage": null,
+        "sea_ice_uncertainty_fraction": null,
+        "iceberg_hazard_proxy": 0.0,
+        "distinct_iceberg_count": 0,
+        "contributing_iceberg_ids": [],
+        "significant_wave_height_m": 3.69,
+        "wave_peak_period_s": 8.8,
+        "wind_speed_ms": 2.6,
+        "ocean_current_speed_ms": 0.36,
+        "ocean_current_direction_deg": 79.7,
+        "current_assistance_knots": null,
+        "water_depth_m": null,
+        "under_keel_clearance_m": null,
+        "geographic_status": "OPEN_OCEAN",
+        "ocean_fraction": 1.0,
+        "land_fraction": 0.0,
+        "ice_shelf_fraction": 0.0
+      },
+      "warnings": [
+        {
+          "code": "MISSING_VARIABLES",
+          "message": "Missing environmental variables: bathymetry_depth_m, sea_ice_concentration",
+          "severity": "WARNING"
+        }
+      ],
+      "warning_codes": [
+        "MISSING_VARIABLES"
+      ],
+      "policy": {
+        "policy_name": "AMIP_POC_BASELINE",
+        "policy_version": "1.0.0",
+        "model_version": "AMIP-RiskEngine-2026.1"
+      },
+      "provenance": {
+        "raw_provenance": "CMEMS_PHY+CMEMS_WAV+ECMWF_IFS+NSIDC_CDR+GEBCO_2026+SCAR_ADD_v7.12"
+      },
+      "representative_tag": "low_iceberg_hazard",
+      "hard_blocked": false,
+      "composite_risk": 0.0673,
+      "confidence_score": 0.7,
+      "confidence_class": "MEDIUM",
+      "sea_ice_risk": 0.0,
+      "iceberg_risk": 0.0,
+      "wave_risk": 0.2983,
+      "wind_risk": 0.026,
+      "current_risk": 0.1,
+      "bathymetric_risk": 0.0,
+      "geographic_risk": 0.0,
+      "warnings_count": 1
+    }
+  ],
+  "status": "PASS"
+}

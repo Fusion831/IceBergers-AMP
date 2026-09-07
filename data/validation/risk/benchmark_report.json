@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-07T15:04:08Z",
+  "cells_evaluated": 1000,
+  "single_cell_latency_ms": 0.143,
+  "batch_total_duration_s": 0.0331,
+  "batch_throughput_cells_per_sec": 30196.0,
+  "average_latency_per_cell_ms": 0.033,
+  "route_evaluation_50_segments_ms": 0.45,
+  "status": "PASS"
+}
