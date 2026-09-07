@@ -52,4 +52,5 @@ data/raw/
 
 # Documentation & PRD
 NCPOR_26059_AMIP_POC_PRD.md
-docs/
+docs/*
+!docs/*.md

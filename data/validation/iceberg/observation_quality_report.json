@@ -1,0 +1,11 @@
+{
+  "total_observations": 42464,
+  "valid_observations": 31335,
+  "flagged_observations": 11129,
+  "flag_rate_pct": 26.21,
+  "flag_reasons": {
+    "duplicate": 11127,
+    "suspicious": 2
+  },
+  "distinct_icebergs": 73
+}

@@ -1,0 +1,33 @@
+{
+  "file": "data\\processed\\gebco\\gebco_2026\\bathymetry_processed_antarctic.nc",
+  "validated_at": "2026-09-07T13:16:30.012973+00:00",
+  "passed": true,
+  "errors": [],
+  "warnings": [],
+  "metrics": {
+    "spatial_extent": {
+      "lat_min": -79.99791666666667,
+      "lat_max": -45.06458333333333,
+      "lon_min": -179.99791666666667,
+      "lon_max": 179.93541666666664,
+      "grid_shape": [
+        525,
+        5400
+      ]
+    },
+    "depth_stats": {
+      "min_m": 1.0,
+      "max_m": 8242.0,
+      "mean_m": 3198.55,
+      "median_m": 3777.0,
+      "p10_m": 430.0,
+      "p90_m": 5013.0
+    },
+    "cell_counts": {
+      "total": 2835000,
+      "ocean": 2492547,
+      "land": 342453,
+      "exact_zero": 0
+    }
+  }
+}
