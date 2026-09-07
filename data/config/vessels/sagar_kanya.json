@@ -1,0 +1,231 @@
+{
+  "vessel_id": "orv_sagar_kanya",
+  "vessel_name": "ORV Sagar Kanya",
+  "callsign": "ATSK",
+  "vessel_type": "Oceanographic Research Vessel",
+  "flag": "India",
+  "owner": "Ministry of Earth Sciences (MoES) / National Centre for Polar and Ocean Research (NCPOR)",
+  "operator": "Shipping Corporation of India (SCI)",
+  "year_built": 1983,
+  "builder": "Schlichting Werft, Travemünde, Germany",
+  "provenance_metadata": {
+    "source_documents": [
+      {
+        "source_id": "NCPOR_PAGE",
+        "title": "NCPOR Official Sagar Kanya Fleet Page",
+        "publisher": "National Centre for Polar and Ocean Research, Goa",
+        "url": "https://ncpor.res.in/vessels/sagar_kanya"
+      },
+      {
+        "source_id": "NCPOR_TENDER_2026",
+        "title": "NCPOR 2026 Sagar Kanya Operation & Maintenance Tender Specification",
+        "publisher": "NCPOR Tender Division, 2026",
+        "reference_number": "NCPOR/V-SK/2026/01"
+      }
+    ],
+    "classification_definitions": {
+      "PUBLISHED": "Directly documented in authoritative NCPOR publications or tenders",
+      "DERIVED": "Mathematically calculated from published parameters without external speculation",
+      "ASSUMED": "Engineering approximations where authoritative vessel telemetry is not publicly released",
+      "USER_CONFIGURED": "Operational threshold intentionally adjustable by the voyage planner",
+      "UNKNOWN": "Explicitly documented as unavailable / uncertified in official NCPOR literature"
+    }
+  },
+  "geometry": {
+    "length_overall_m": {
+      "value": 100.34,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_PAGE",
+      "notes": "Length overall (LOA) documented on main fleet specification"
+    },
+    "length_bp_m": {
+      "value": 89.0,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "notes": "Length between perpendiculars (LBP) from 2026 tender specification"
+    },
+    "breadth_extreme_m": {
+      "value": 16.39,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_PAGE",
+      "notes": "Extreme breadth on main fleet specification"
+    },
+    "breadth_moulded_m": {
+      "value": 16.3,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "notes": "Moulded breadth from 2026 tender specification"
+    },
+    "maximum_draft_m": {
+      "value": 5.6,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_PAGE & NCPOR_TENDER_2026",
+      "notes": "Consistently documented across all NCPOR publications"
+    }
+  },
+  "tonnage": {
+    "gross_tonnage": {
+      "value": 4888,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "discrepancy_note": "NCPOR website lists 4209 GRT (pre-modification); 2026 tender specifies 4888 GT. Tender value retained as authoritative modern specification."
+    },
+    "deadweight_tonnes": {
+      "value": 796.0,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "notes": "Maximum deadweight at summer load line"
+    },
+    "displacement_tonnes": {
+      "value": 4180.0,
+      "classification": "DERIVED",
+      "source": "Naval Architecture Estimation (Block coefficient Cb ~ 0.51 at draft 5.6m)",
+      "notes": "Estimated from LBP, breadth moulded, draft, and standard research vessel block coefficient"
+    }
+  },
+  "propulsion": {
+    "engine_type": {
+      "value": "Diesel-Electric Propulsion",
+      "classification": "PUBLISHED",
+      "source": "NCPOR_PAGE",
+      "notes": "Twin screw diesel-electric propulsion arrangement"
+    },
+    "engine_output_kw": {
+      "value": 2460.0,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "breakdown": "2 x 1230 kW main propulsion electric motors / generators"
+    }
+  },
+  "speed": {
+    "cruise_speed_knots": {
+      "value": 9.0,
+      "classification": "USER_CONFIGURED",
+      "source": "NCPOR published range is 8-10 knots; 9.0 knots selected as nominal mission reference point",
+      "notes": "Nominal service cruising speed"
+    },
+    "min_operating_speed_knots": {
+      "value": 4.0,
+      "classification": "ASSUMED",
+      "source": "Operational engineering minimum for steerage way in Southern Ocean swells",
+      "notes": "Below 4 knots steerage and heading control degrade without bow thruster assistance"
+    },
+    "max_operating_speed_knots": {
+      "value": 12.0,
+      "classification": "ASSUMED",
+      "source": "Historical trials data for Sagar Kanya hull form (published cruising 10 kn max)",
+      "notes": "Full ahead sprint speed under calm conditions"
+    }
+  },
+  "endurance_and_fuel": {
+    "endurance_days": {
+      "value": 45,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_PAGE & NCPOR_TENDER_2026",
+      "notes": "Unassisted continuous voyage endurance limit"
+    },
+    "fuel_capacity_m3": {
+      "value": 433.0,
+      "classification": "PUBLISHED",
+      "source": "NCPOR_TENDER_2026",
+      "notes": "Total usable Marine Gas Oil (MGO) bunker capacity"
+    },
+    "fuel_capacity_metric_tonnes": {
+      "value": 368.05,
+      "classification": "DERIVED",
+      "source": "MGO density 0.850 t/m3 at 15 deg C",
+      "notes": "433.0 m3 * 0.850 t/m3 = 368.05 metric tonnes"
+    },
+    "fuel_model": {
+      "model_type": "reduced_order_cubic_propulsion",
+      "model_status": "POC estimate (reduced-order cubic propulsion model + auxiliary hotel load)",
+      "nominal_propulsion_rate_mt_per_hour": {
+        "value": 0.28,
+        "classification": "DERIVED",
+        "notes": "Calibrated to ~6.72 MT/day propulsion at 9.0 knots cruising"
+      },
+      "hotel_auxiliary_rate_mt_per_hour": {
+        "value": 0.06,
+        "classification": "DERIVED",
+        "notes": "Calibrated to ~1.44 MT/day scientific labs, HVAC, navigation generators"
+      },
+      "total_calibrated_daily_burn_rate_mt": {
+        "value": 8.16,
+        "classification": "DERIVED",
+        "notes": "(0.28 + 0.06) * 24 = 8.16 MT/day; 8.16 MT/day * 45 days = 367.2 MT (~99.8% of 368 MT bunker capacity)"
+      }
+    }
+  },
+  "ice_capability": {
+    "status": "UNKNOWN",
+    "classification": "UNKNOWN",
+    "source": "NCPOR official records contain no certified Polar Class (PC) or Finnish-Swedish Ice Class rating for ORV Sagar Kanya",
+    "confidence": "HIGH_CONFIDENCE_OF_ABSENCE",
+    "notes": "ORV Sagar Kanya was designed primarily for tropical and sub-tropical Indian Ocean research. While she has operated in Southern Ocean sub-Antarctic waters during Indian Scientific Expeditions, she is NOT an icebreaker or heavy ice-class vessel.",
+    "max_operational_sic": {
+      "value": 0.15,
+      "classification": "USER_CONFIGURED",
+      "notes": "Conservative maximum sea ice concentration (15%) for open water transit; avoid compact pack ice"
+    },
+    "preferred_max_sic": {
+      "value": 0.05,
+      "classification": "USER_CONFIGURED",
+      "notes": "Optimal route threshold (open water / very open pack < 5%)"
+    }
+  },
+  "environmental_operational_limits": {
+    "max_safe_wave_height_m": {
+      "value": 6.0,
+      "classification": "ASSUMED",
+      "notes": "Significant wave height Hs threshold beyond which course alteration or speed reduction is mandatory"
+    },
+    "preferred_max_wave_height_m": {
+      "value": 4.0,
+      "classification": "USER_CONFIGURED",
+      "notes": "Comfortable scientific research operational sea state threshold"
+    },
+    "max_operational_wind_speed_ms": {
+      "value": 20.0,
+      "classification": "ASSUMED",
+      "notes": "Approximately 39 knots (Gale Force 8); triggers severe aerodynamic resistance penalty"
+    },
+    "safety_under_keel_clearance_m": {
+      "value": 3.0,
+      "classification": "USER_CONFIGURED",
+      "notes": "Required depth clearance below 5.6m keel (safe depth threshold = 8.6m)"
+    },
+    "under_keel_rule": {
+      "value": "HARD_BLOCK",
+      "classification": "USER_CONFIGURED",
+      "options": ["HARD_BLOCK", "WARNING", "SOFT_PENALTY"],
+      "notes": "Rule applied when bathymetry depth minus draft is less than required clearance"
+    }
+  },
+  "geographic_constraints": {
+    "respect_scar_add_mask": true,
+    "blocked_statuses": ["LAND", "ICE_SHELF", "ICE_TONGUE"],
+    "classification": "PUBLISHED",
+    "source": "SCAR Antarctic Digital Database v7.12",
+    "rule_type": "HARD_BLOCK"
+  },
+  "discrepancies": [
+    {
+      "parameter": "gross_tonnage",
+      "ncpor_page_value": "4209 GRT",
+      "tender_2026_value": "4888 GT",
+      "resolution": "Retained 4888 GT from the latest 2026 tender as the modern post-refit registered value, while logging the historical 4209 GRT value."
+    },
+    {
+      "parameter": "breadth",
+      "ncpor_page_value": "16.39 m (Breadth extreme)",
+      "tender_2026_value": "16.30 m (Breadth moulded)",
+      "resolution": "Both preserved: 16.39 m extreme breadth vs 16.30 m moulded breadth."
+    },
+    {
+      "parameter": "length",
+      "ncpor_page_value": "100.34 m (Length overall)",
+      "tender_2026_value": "89.00 m (Length BP)",
+      "resolution": "Both preserved: 100.34 m LOA vs 89.00 m LBP."
+    }
+  ]
+}
