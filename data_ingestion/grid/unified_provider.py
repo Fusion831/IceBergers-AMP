@@ -10,6 +10,7 @@ import numpy as np
 from domain.coordinates import GeoPoint, BoundingBox, GridSpec
 from data_access.environment_provider import EnvironmentalDataProviderInterface, default_environment_provider
 from data_ingestion.nsidc.interface import NSIDCSeaIceInterface
+from data_ingestion.gebco.interface import GEBCOBathymetryInterface
 from data_ingestion.grid.amip_grid import AMIPGrid
 from data_ingestion.grid.environment_cell import EnvironmentCell
 from core.logging import get_logger
@@ -26,9 +27,15 @@ class AMIPUnifiedEnvironmentalProvider(EnvironmentalDataProviderInterface):
     def __init__(
         self,
         nsidc_interface: Optional[NSIDCSeaIceInterface] = None,
+        gebco_interface: Optional[GEBCOBathymetryInterface] = None,
         fallback_provider: Optional[EnvironmentalDataProviderInterface] = None,
     ):
         self.nsidc = nsidc_interface or NSIDCSeaIceInterface()
+        try:
+            self.gebco = gebco_interface or GEBCOBathymetryInterface()
+        except Exception as e:
+            logger.warning("Could not initialize GEBCO interface, using fallback", error=str(e))
+            self.gebco = None
         self.fallback = fallback_provider or default_environment_provider
         self.grid = AMIPGrid()
 
@@ -39,7 +46,7 @@ class AMIPUnifiedEnvironmentalProvider(EnvironmentalDataProviderInterface):
     ) -> Dict[str, float]:
         """
         Query physical state at a specific coordinate and time.
-        Uses real NSIDC SIC if available, falling back to physical base provider.
+        Uses real NSIDC SIC and GEBCO bathymetry if available, falling back to physical base provider.
         """
         # Baseline physical state from fallback
         env = self.fallback.get_point_environment(point, valid_time)
@@ -52,6 +59,21 @@ class AMIPUnifiedEnvironmentalProvider(EnvironmentalDataProviderInterface):
             env["sic_source"] = "NSIDC_G02202_v6"
         else:
             env["sic_source"] = "synthetic_fallback"
+
+        # Attempt to inject real GEBCO bathymetry
+        if self.gebco is not None:
+            try:
+                real_depth = self.gebco.get_depth_point(point)
+                if real_depth is not None:
+                    env["bathymetry_depth_m"] = real_depth
+                    env["bathymetry_source"] = "GEBCO_2026_sub_ice"
+                    env["is_land"] = 0.0
+                elif self.gebco.is_land(point.latitude, point.longitude):
+                    env["bathymetry_depth_m"] = None
+                    env["bathymetry_source"] = "GEBCO_2026_sub_ice"
+                    env["is_land"] = 1.0
+            except Exception as e:
+                logger.debug("GEBCO lookup error, keeping baseline", error=str(e))
 
         return env
 
