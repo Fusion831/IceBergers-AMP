@@ -1,70 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MissionProvider, useMission } from './context/MissionContext';
 import { Header } from './components/Header';
-import { MissionSetupView } from './views/MissionSetupView';
-import { AntarcticMapView } from './views/AntarcticMapView';
-import { EnvironmentalTimelineView } from './views/EnvironmentalTimelineView';
-import { LocationComparisonView } from './views/LocationComparisonView';
-import { RouteComparisonView } from './views/RouteComparisonView';
-import { PredictionInspectorView } from './views/PredictionInspectorView';
-import { ViewMode } from './types/mission';
+import { AntarcticMap } from './components/AntarcticMap';
+import { MissionPlanDrawer } from './components/MissionPlanDrawer';
+import { RouteDetailsDrawer } from './components/RouteDetailsDrawer';
+import { MapLayersMenu } from './components/MapLayersMenu';
 
 function MainWorkstation() {
-  const { activeView, setActiveView } = useMission();
-  const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+  const {
+    routes,
+    selectedRouteId,
+    setSelectedRouteId,
+    selectedRoute,
+    timeHorizon,
+    setTimeHorizon,
+    showH3Grid,
+    setShowH3Grid,
+    showTrajectories,
+    setShowTrajectories
+  } = useMission();
 
-  // Mouse move listener for smooth cursor-following white and light-blue dynamic gradient
-  useEffect(() => {
-    let animFrame: number;
-    let targetX = 50;
-    let targetY = 50;
-    let currentX = 50;
-    let currentY = 50;
+  // Drawer / Menu Toggles (HUD panels)
+  const [isMissionPlanOpen, setIsMissionPlanOpen] = useState<boolean>(false);
+  const [isRouteDetailsOpen, setIsRouteDetailsOpen] = useState<boolean>(false);
+  const [isMapLayersOpen, setIsMapLayersOpen] = useState<boolean>(false);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      targetX = (e.clientX / window.innerWidth) * 100;
-      targetY = (e.clientY / window.innerHeight) * 100;
-    };
+  // Map Layer States
+  const [showIcebergs, setShowIcebergs] = useState<boolean>(true);
+  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-terrain' | 'osm'>('google-earth');
+  const [hoveredCellData, setHoveredCellData] = useState<any | null>(null);
 
-    const loop = () => {
-      // Smooth lerp interpolation for silky motion
-      currentX += (targetX - currentX) * 0.15;
-      currentY += (targetY - currentY) * 0.15;
-      setMousePos({ x: currentX, y: currentY });
-      animFrame = requestAnimationFrame(loop);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    animFrame = requestAnimationFrame(loop);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      cancelAnimationFrame(animFrame);
-    };
-  }, []);
-
-  // Keyboard shortcut listener (Keys 1-6 switch views)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        return;
-      }
-      const viewMap: Record<string, ViewMode> = {
-        '1': 'mission-setup',
-        '2': 'antarctic-map',
-        '3': 'environmental-timeline',
-        '4': 'location-comparison',
-        '5': 'route-comparison',
-        '6': 'prediction-inspector'
-      };
-      if (viewMap[e.key]) {
-        setActiveView(viewMap[e.key]);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setActiveView]);
+  const handleSelectRoute = (routeId: string) => {
+    setSelectedRouteId(routeId);
+    // Smoothly open the route details drawer when clicked without crashing or unmounting the map
+    setIsRouteDetailsOpen(true);
+  };
 
   return (
     <div
@@ -75,32 +45,71 @@ function MainWorkstation() {
         width: '100vw',
         overflow: 'hidden',
         position: 'relative',
-        background: `
-          radial-gradient(650px circle at ${mousePos.x}% ${mousePos.y}%, 
-            rgba(96, 165, 250, 0.55) 0%, 
-            rgba(147, 197, 253, 0.45) 25%, 
-            rgba(186, 230, 253, 0.35) 45%, 
-            rgba(224, 242, 254, 0.20) 70%, 
-            transparent 100%),
-          radial-gradient(1200px circle at ${100 - mousePos.x}% ${100 - mousePos.y}%, 
-            rgba(186, 230, 253, 0.40) 0%, 
-            rgba(224, 242, 254, 0.25) 50%, 
-            transparent 80%),
-          linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 40%, #ffffff 80%, #dbeafe 100%)
-        `
+        background: '#090d16'
       }}
     >
-      {/* Top Bar with Brand and View Navigation */}
-      <Header />
+      {/* Sleek, Non-technical Header */}
+      <Header
+        isMissionPlanOpen={isMissionPlanOpen}
+        onToggleMissionPlan={() => setIsMissionPlanOpen((prev) => !prev)}
+        isRouteDetailsOpen={isRouteDetailsOpen}
+        onToggleRouteDetails={() => setIsRouteDetailsOpen((prev) => !prev)}
+        isMapLayersOpen={isMapLayersOpen}
+        onToggleMapLayers={() => setIsMapLayersOpen((prev) => !prev)}
+        selectedRouteName={selectedRoute?.name || 'Fastest Route'}
+      />
 
-      {/* Main View Area */}
-      <main style={{ flex: 1, overflow: 'hidden', padding: '10px 14px', position: 'relative', zIndex: 1 }}>
-        {activeView === 'mission-setup' && <MissionSetupView />}
-        {activeView === 'antarctic-map' && <AntarcticMapView />}
-        {activeView === 'environmental-timeline' && <EnvironmentalTimelineView />}
-        {activeView === 'location-comparison' && <LocationComparisonView />}
-        {activeView === 'route-comparison' && <RouteComparisonView />}
-        {activeView === 'prediction-inspector' && <PredictionInspectorView />}
+      {/* Main Map Workspace - Never unmounts */}
+      <main
+        style={{
+          flex: 1,
+          width: '100%',
+          height: 'calc(100vh - 52px)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <AntarcticMap
+          selectedHorizon={timeHorizon}
+          selectedRoute={selectedRouteId}
+          onHorizonChange={(hz) => setTimeHorizon(hz as any)}
+          onSelectRoute={handleSelectRoute}
+          showH3Grid={showH3Grid}
+          showIcebergs={showIcebergs}
+          showTrajectories={showTrajectories}
+          basemapStyle={basemapStyle}
+          onHoverCell={setHoveredCellData}
+        />
+
+        {/* Togglable Left Panel: Mission Plan (First GOL) */}
+        <MissionPlanDrawer
+          isOpen={isMissionPlanOpen}
+          onClose={() => setIsMissionPlanOpen(false)}
+        />
+
+        {/* Togglable Right Panel: Route Details */}
+        <RouteDetailsDrawer
+          isOpen={isRouteDetailsOpen}
+          onClose={() => setIsRouteDetailsOpen(false)}
+          route={selectedRoute}
+          routes={routes}
+          onSelectRoute={handleSelectRoute}
+        />
+
+        {/* Togglable Top-Right Panel: Map Layers & Ocean Readout */}
+        <MapLayersMenu
+          isOpen={isMapLayersOpen}
+          onClose={() => setIsMapLayersOpen(false)}
+          showH3Grid={showH3Grid}
+          onToggleH3Grid={() => setShowH3Grid((prev) => !prev)}
+          showIcebergs={showIcebergs}
+          onToggleIcebergs={() => setShowIcebergs((prev) => !prev)}
+          showTrajectories={showTrajectories}
+          onToggleTrajectories={() => setShowTrajectories((prev) => !prev)}
+          basemapStyle={basemapStyle}
+          onChangeBasemap={setBasemapStyle}
+          hoveredCellData={hoveredCellData}
+        />
       </main>
     </div>
   );

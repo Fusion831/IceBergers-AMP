@@ -2,9 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import {
   Compass,
-  Grid,
   Radio,
-  Navigation,
   Play,
   Pause,
   Calendar,
@@ -16,10 +14,16 @@ import antarcticaFullH3GridData from '../data/antarctica_full_h3_grid.json';
 
 interface AntarcticMapProps {
   selectedHorizon: string;
-  activeLayer: 'sic' | 'icebergs' | 'risk' | 'weather';
+  activeLayer?: 'sic' | 'icebergs' | 'risk' | 'weather';
   selectedRoute: string;
   onHorizonChange?: (hz: string) => void;
   onInspectPoint?: (coords: [number, number]) => void;
+  onSelectRoute?: (routeId: string) => void;
+  showH3Grid?: boolean;
+  showIcebergs?: boolean;
+  showTrajectories?: boolean;
+  basemapStyle?: 'google-earth' | 'google-terrain' | 'osm';
+  onHoverCell?: (data: any | null) => void;
 }
 
 // User specified stable route colors
@@ -59,7 +63,13 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   selectedHorizon,
   selectedRoute: propSelectedRoute,
   onHorizonChange,
-  onInspectPoint
+  onInspectPoint,
+  onSelectRoute,
+  showH3Grid: propShowH3Grid,
+  showIcebergs: propShowIcebergs = true,
+  showTrajectories: propShowTrajectories,
+  basemapStyle: propBasemapStyle,
+  onHoverCell
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -76,10 +86,8 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     getCellEnvironment,
     getCellRisk,
     icebergsList,
-    showTrajectories,
-    setShowTrajectories,
-    showH3Grid,
-    setShowH3Grid,
+    showTrajectories: contextShowTrajectories,
+    showH3Grid: contextShowH3Grid,
     selectedH3Cell,
     setSelectedH3Cell,
     selectedSegment,
@@ -88,10 +96,15 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     setSelectedIceberg
   } = useMission();
 
+  // Controlled or context fallback states
+  const showH3Grid = propShowH3Grid !== undefined ? propShowH3Grid : contextShowH3Grid;
+  const showIcebergs = propShowIcebergs !== undefined ? propShowIcebergs : true;
+  const showTrajectories = propShowTrajectories !== undefined ? propShowTrajectories : contextShowTrajectories;
+  const basemapStyle = propBasemapStyle || 'google-earth';
+
   // Timeline slider state: T+0 to T+90 days
   const [sliderDay, setSliderDay] = useState<number>(0);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState<boolean>(false);
-  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-terrain' | 'osm'>('google-earth');
   const [hoveredCellData, setHoveredCellData] = useState<any | null>(null);
 
   // Per-route visibility toggles (allow toggling individual routes ON/OFF)
@@ -924,12 +937,14 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         if (mapInstance.getLayer('canonical-h3-hover-fill')) {
           mapInstance.setFilter('canonical-h3-hover-fill', ['==', ['get', 'id'], cellId]);
         }
-        setHoveredCellData({
+        const dataObj = {
           ...props,
           ...env,
           ...risk,
           displayId: cellId
-        });
+        };
+        setHoveredCellData(dataObj);
+        if (onHoverCell) onHoverCell(dataObj);
       });
 
       mapInstance.on('mouseleave', 'canonical-h3-hit', () => {
@@ -938,6 +953,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           mapInstance.setFilter('canonical-h3-hover-fill', ['==', ['get', 'id'], '']);
         }
         setHoveredCellData(null);
+        if (onHoverCell) onHoverCell(null);
       });
 
       // Click H3 Cell: Select cell with REAL Environment & Risk Profile
@@ -1023,17 +1039,23 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         }
       });
 
-      // Click Route Line: Select that route objective
+      // Click Route Line: Select that route objective & open drawer
       mapInstance.on('click', 'routes-unselected-line', (e) => {
         if (!e.features || e.features.length === 0) return;
         const routeId = e.features[0].properties?.id;
-        if (routeId) setSelectedRouteId(routeId);
+        if (routeId) {
+          setSelectedRouteId(routeId);
+          if (onSelectRoute) onSelectRoute(routeId);
+        }
       });
 
       mapInstance.on('click', 'routes-selected-line', (e) => {
         if (!e.features || e.features.length === 0) return;
         const routeId = e.features[0].properties?.id;
-        if (routeId) setSelectedRouteId(routeId);
+        if (routeId) {
+          setSelectedRouteId(routeId);
+          if (onSelectRoute) onSelectRoute(routeId);
+        }
       });
 
       // Click Route Segment: Open Segment Inspector
@@ -1180,6 +1202,48 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     }
   }, [selectedH3Cell]);
 
+  // Synchronize H3 Hexagon Grid Layer Visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const vis = showH3Grid ? 'visible' : 'none';
+    if (map.current.getLayer('canonical-h3-mesh-line')) {
+      map.current.setLayoutProperty('canonical-h3-mesh-line', 'visibility', vis);
+    }
+    if (map.current.getLayer('canonical-h3-hit')) {
+      map.current.setLayoutProperty('canonical-h3-hit', 'visibility', vis);
+    }
+  }, [showH3Grid]);
+
+  // Synchronize Icebergs Layer Visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const vis = showIcebergs ? 'visible' : 'none';
+    if (map.current.getLayer('icebergs-point')) {
+      map.current.setLayoutProperty('icebergs-point', 'visibility', vis);
+    }
+    if (map.current.getLayer('icebergs-selected-halo')) {
+      map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', vis);
+    }
+  }, [showIcebergs]);
+
+  // Synchronize Iceberg Drift Trajectory Lines Visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const vis = showTrajectories ? 'visible' : 'none';
+    if (map.current.getLayer('iceberg-trajectories-line')) {
+      map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', vis);
+    }
+  }, [showTrajectories]);
+
+  // Synchronize Basemap Raster Tiles
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('satellite-basemap-tiles') as any;
+    if (source && source.setTiles) {
+      source.setTiles([getTileUrl(basemapStyle)]);
+    }
+  }, [basemapStyle]);
+
   // Synchronize Route Identity Markers
   useEffect(() => {
     if (!map.current) return;
@@ -1203,6 +1267,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       el.onclick = (ev) => {
         ev.stopPropagation();
         setSelectedRouteId(r.id);
+        if (onSelectRoute) onSelectRoute(r.id);
       };
 
       const marker = new maplibregl.Marker({ element: el })
@@ -1277,88 +1342,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           </div>
         </div>
 
-        {/* Top-Right Layer & Basemap Toggles */}
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          right: '50px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          pointerEvents: 'auto',
-          zIndex: 20
-        }}>
-          {/* Toggle Trajectories */}
-          <button
-            onClick={() => setShowTrajectories(!showTrajectories)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              background: showTrajectories ? 'rgba(249, 115, 22, 0.25)' : 'rgba(15, 23, 42, 0.85)',
-              border: `1px solid ${showTrajectories ? '#f97316' : '#334155'}`,
-              color: showTrajectories ? '#f97316' : '#94a3b8',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <Navigation size={11} />
-            <span>TRAJECTORIES ({showTrajectories ? 'ON' : 'OFF'})</span>
-          </button>
 
-          {/* Toggle H3 Grid Lines */}
-          <button
-            onClick={() => setShowH3Grid(!showH3Grid)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              background: showH3Grid ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.85)',
-              border: `1px solid ${showH3Grid ? '#38bdf8' : '#334155'}`,
-              color: showH3Grid ? '#38bdf8' : '#94a3b8',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <Grid size={11} />
-            <span>H3 GRID ({showH3Grid ? 'ON' : 'OFF'})</span>
-          </button>
-
-          {/* Basemap Switcher */}
-          <div style={{ display: 'flex', gap: '2px', background: '#0f172a', padding: '2px', border: '1px solid #334155' }}>
-            {[
-              { id: 'google-earth', label: 'Sat' },
-              { id: 'google-terrain', label: 'Terr' },
-              { id: 'osm', label: 'OSM' }
-            ].map((item) => {
-              const isActive = basemapStyle === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setBasemapStyle(item.id as any)}
-                  style={{
-                    padding: '2px 5px',
-                    border: 'none',
-                    background: isActive ? '#2563eb' : 'transparent',
-                    color: isActive ? '#ffffff' : '#94a3b8',
-                    fontSize: '9px',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: isActive ? 800 : 500,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Hover H3 Cell Real Physical Telemetry Pill */}
         {hoveredCellData && (
@@ -1427,7 +1411,10 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                 return (
                   <div
                     key={r.id}
-                    onClick={() => setSelectedRouteId(r.id)}
+                    onClick={() => {
+                      setSelectedRouteId(r.id);
+                      if (onSelectRoute) onSelectRoute(r.id);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
