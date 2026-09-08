@@ -20,9 +20,9 @@ interface MapLayersMenuProps {
 const ROUTE_INFO: Array<{ id: string; name: string; color: string; objective: string }> = [
   { id: 'fastest', name: 'Fastest Corridor', color: '#3b82f6', objective: 'Transit Time' },
   { id: 'shortest', name: 'Shortest Corridor', color: '#f59e0b', objective: 'Least Distance' },
-  { id: 'safest', name: 'Safest Corridor', color: '#10b981', objective: 'Lowest Risk' },
+  { id: 'safest', name: 'Safest Corridor', color: '#22c55e', objective: 'Lowest Risk' },
   { id: 'fuel_efficient', name: 'Fuel-Efficient', color: '#a855f7', objective: 'Least Fuel Burn' },
-  { id: 'balanced', name: 'Balanced Corridor', color: '#06b6d4', objective: 'Compromise' }
+  { id: 'balanced', name: 'Balanced Corridor', color: '#14b8a6', objective: 'Compromise' }
 ];
 
 export const MapLayersMenu: React.FC<MapLayersMenuProps> = ({
@@ -36,7 +36,7 @@ export const MapLayersMenu: React.FC<MapLayersMenuProps> = ({
   onToggleTrajectories,
   basemapStyle,
   onChangeBasemap,
-  hoveredCellData,
+  hoveredCellData: _hoveredCellData,
   onOpenRiskVisualizer
 }) => {
   const { enabledRoutes, toggleRouteEnabled } = useMission();
@@ -99,161 +99,109 @@ export const MapLayersMenu: React.FC<MapLayersMenuProps> = ({
         </button>
       </div>
 
-      {/* Body */}
-      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
         
-        {/* Toggle 1: Hexagon Grid */}
-        <div
-          onClick={onToggleH3Grid}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 10px',
-            background: showH3Grid ? 'rgba(56, 189, 248, 0.12)' : '#111a2e',
-            border: `1px solid ${showH3Grid ? '#0284c7' : '#22324e'}`,
-            borderRadius: '4px',
-            cursor: 'pointer',
-            userSelect: 'none'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Grid size={16} color={showH3Grid ? '#38bdf8' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: showH3Grid ? '#f8fafc' : '#94a3b8' }}>
-                Hexagon Grid Mesh
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                10,664 real computational cells
+        {/* H3 Hexagonal Grid Toggle */}
+        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '5px', border: '1px solid #1e2c45' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Grid size={16} color={showH3Grid ? '#38bdf8' : '#64748b'} />
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                  H3 Hexagon Grid
+                </div>
+                <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                  Circum-Antarctic canonical cells (RES-5 & RES-4)
+                </div>
               </div>
             </div>
+
+            <button
+              onClick={onToggleH3Grid}
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: showH3Grid ? '#ffffff' : '#94a3b8',
+                background: showH3Grid ? '#0284c7' : '#1e293b',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {showH3Grid ? 'ON' : 'OFF'}
+            </button>
           </div>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '3px',
-              background: showH3Grid ? '#0284c7' : '#22324e',
-              color: '#ffffff'
-            }}
-          >
-            {showH3Grid ? 'ON' : 'OFF'}
-          </span>
         </div>
 
-        {/* Toggle 2: Tracked Icebergs */}
-        <div
-          onClick={onToggleIcebergs}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 10px',
-            background: showIcebergs ? 'rgba(249, 115, 22, 0.12)' : '#111a2e',
-            border: `1px solid ${showIcebergs ? '#ea580c' : '#22324e'}`,
-            borderRadius: '4px',
-            cursor: 'pointer',
-            userSelect: 'none'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Radio size={16} color={showIcebergs ? '#f97316' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: showIcebergs ? '#f8fafc' : '#94a3b8' }}>
-                Tracked Icebergs
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                73 giant icebergs (USNIC observation)
-              </div>
-            </div>
-          </div>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '3px',
-              background: showIcebergs ? '#ea580c' : '#22324e',
-              color: '#ffffff'
-            }}
-          >
-            {showIcebergs ? 'ON' : 'OFF'}
-          </span>
-        </div>
-
-        {/* Toggle 3: Iceberg Drift Paths */}
-        <div
-          onClick={onToggleTrajectories}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 10px',
-            background: showTrajectories ? 'rgba(234, 88, 12, 0.12)' : '#111a2e',
-            border: `1px solid ${showTrajectories ? '#c2410c' : '#22324e'}`,
-            borderRadius: '4px',
-            cursor: 'pointer',
-            userSelect: 'none'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Navigation size={16} color={showTrajectories ? '#fb923c' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: showTrajectories ? '#f8fafc' : '#94a3b8' }}>
-                Iceberg Drift Paths
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                90-day ocean drift tracks
-              </div>
-            </div>
-          </div>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '3px',
-              background: showTrajectories ? '#c2410c' : '#22324e',
-              color: '#ffffff'
-            }}
-          >
-            {showTrajectories ? 'ON' : 'OFF'}
-          </span>
-        </div>
-
-        {/* Dedicated Route Visibility Section */}
-        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
+        {/* Iceberg Layer Controls */}
+        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '5px', border: '1px solid #1e2c45' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase' }}>
-              Individual Path Toggles
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Radio size={16} color={showIcebergs ? '#f97316' : '#64748b'} />
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                  73 Tracked Icebergs
+                </div>
+                <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                  USNIC / BYU Observation Markers
+                </div>
+              </div>
             </div>
-            {onOpenRiskVisualizer && (
-              <button
-                onClick={onOpenRiskVisualizer}
-                style={{
-                  fontSize: '9.5px',
-                  fontWeight: 700,
-                  color: '#38bdf8',
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  border: '1px solid #0284c7',
-                  padding: '2px 6px',
-                  borderRadius: '3px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <Shield size={10} />
-                Risk Chart
-              </button>
-            )}
+
+            <button
+              onClick={onToggleIcebergs}
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: showIcebergs ? '#ffffff' : '#94a3b8',
+                background: showIcebergs ? '#ea580c' : '#1e293b',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              {showIcebergs ? 'ON' : 'OFF'}
+            </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {/* Sub-toggle: 90d Trajectories */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #1a263d', paddingTop: '8px' }}>
+            <span style={{ fontSize: '11px', color: '#cbd5e1' }}>
+              Show 90-Day Drift Tracks
+            </span>
+            <button
+              onClick={onToggleTrajectories}
+              style={{
+                padding: '3px 8px',
+                fontSize: '10px',
+                fontWeight: 700,
+                color: showTrajectories ? '#ffffff' : '#94a3b8',
+                background: showTrajectories ? 'rgba(249, 115, 22, 0.4)' : '#1e293b',
+                border: `1px solid ${showTrajectories ? '#f97316' : '#334155'}`,
+                borderRadius: '3px',
+                cursor: 'pointer'
+              }}
+            >
+              {showTrajectories ? 'ENABLED' : 'HIDDEN'}
+            </button>
+          </div>
+        </div>
+
+        {/* Individual Route Visibility Toggles */}
+        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '5px', border: '1px solid #1e2c45' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <Navigation size={14} color="#38bdf8" />
+            <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase' }}>
+              Route Path Toggles (5 Alternatives)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {ROUTE_INFO.map((r) => {
-              const isVisible = enabledRoutes[r.id] !== false;
+              const isVis = enabledRoutes[r.id] !== false;
               return (
                 <div
                   key={r.id}
@@ -262,94 +210,108 @@ export const MapLayersMenu: React.FC<MapLayersMenuProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '5px 8px',
-                    background: isVisible ? '#0a0f1d' : '#141e33',
-                    border: `1px solid ${isVisible ? r.color : '#22324e'}`,
-                    borderLeft: `3px solid ${r.color}`,
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    opacity: isVisible ? 1.0 : 0.5
+                    padding: '6px 8px',
+                    borderRadius: '4px',
+                    background: isVis ? '#0a0f1d' : 'transparent',
+                    border: `1px solid ${isVis ? '#1e2c45' : 'transparent'}`,
+                    cursor: 'pointer'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {isVisible ? <Eye size={12} color={r.color} /> : <EyeOff size={12} color="#64748b" />}
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: isVisible ? '#f8fafc' : '#94a3b8' }}>
-                      {r.name}
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        background: r.color,
+                        boxShadow: isVis ? `0 0 8px ${r.color}` : 'none'
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '11.5px', fontWeight: isVis ? 700 : 500, color: isVis ? '#f8fafc' : '#64748b' }}>
+                        {r.name}
+                      </div>
+                      <div style={{ fontSize: '9px', color: '#64748b' }}>
+                        Prioritizes: {r.objective}
+                      </div>
+                    </div>
                   </div>
 
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      fontWeight: 800,
-                      color: isVisible ? r.color : '#64748b'
-                    }}
-                  >
-                    {isVisible ? 'VISIBLE' : 'HIDDEN'}
-                  </span>
+                  <div style={{ color: isVis ? '#38bdf8' : '#475569' }}>
+                    {isVis ? <Eye size={15} /> : <EyeOff size={15} />}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
 
+        {/* Risk Visualizer Direct Action */}
+        {onOpenRiskVisualizer && (
+          <div style={{ background: '#111a2e', padding: '10px', borderRadius: '5px', border: '1px solid #1e2c45' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={16} color="#10b981" />
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                    Path Risk Visualizer
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                    Compare multi-factor risks per route
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={onOpenRiskVisualizer}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  background: '#059669',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                OPEN
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Basemap Switcher */}
-        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '6px' }}>
-            BASEMAP PHOTO STYLE
+        <div style={{ background: '#111a2e', padding: '10px', borderRadius: '5px', border: '1px solid #1e2c45' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>
+            Satellite / Basemap Style
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
             {[
-              { id: 'google-earth', label: 'Satellite' },
+              { id: 'google-earth', label: 'Satellite (Muted)' },
               { id: 'google-terrain', label: 'Terrain' },
-              { id: 'osm', label: 'Simple Map' }
-            ].map((item) => {
-              const isActive = basemapStyle === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onChangeBasemap(item.id as any)}
-                  style={{
-                    padding: '6px 4px',
-                    fontSize: '11px',
-                    fontWeight: isActive ? 800 : 600,
-                    color: isActive ? '#ffffff' : '#94a3b8',
-                    background: isActive ? '#0284c7' : '#0a0f1d',
-                    border: `1px solid ${isActive ? '#38bdf8' : '#22324e'}`,
-                    borderRadius: '3px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+              { id: 'osm', label: 'Street/Sea' }
+            ].map((b) => (
+              <button
+                key={b.id}
+                onClick={() => onChangeBasemap(b.id as any)}
+                style={{
+                  padding: '6px 4px',
+                  fontSize: '10px',
+                  fontWeight: basemapStyle === b.id ? 800 : 500,
+                  color: basemapStyle === b.id ? '#ffffff' : '#94a3b8',
+                  background: basemapStyle === b.id ? '#0284c7' : '#0a0f1d',
+                  border: `1px solid ${basemapStyle === b.id ? '#38bdf8' : '#1e293b'}`,
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  textAlign: 'center'
+                }}
+              >
+                {b.label}
+              </button>
+            ))}
           </div>
-        </div>
-
-        {/* Real-time Ocean Hover Telemetry readout */}
-        <div style={{ background: '#0a0f1d', padding: '10px', borderRadius: '4px', border: '1px solid #1e2c45' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
-            <span>OCEAN POINT INSPECTOR</span>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>
-              {hoveredCellData ? 'HOVER ACTIVE' : 'MOVE MOUSE OVER OCEAN'}
-            </span>
-          </div>
-
-          {hoveredCellData ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', fontSize: '10.5px', marginTop: '6px' }}>
-              <div>Depth: <strong style={{ color: '#f8fafc' }}>{hoveredCellData.depth?.toFixed(0) ?? 3400} m</strong></div>
-              <div>Waves: <strong style={{ color: '#38bdf8' }}>{hoveredCellData.wave_height?.toFixed(1) ?? 3.2} m</strong></div>
-              <div>Winds: <strong style={{ color: '#f8fafc' }}>{hoveredCellData.wind_speed?.toFixed(1) ?? 9.0} m/s</strong></div>
-              <div>Current: <strong style={{ color: '#34d399' }}>{hoveredCellData.current_magnitude?.toFixed(2) ?? 0.18} m/s</strong></div>
-              <div>Location: <span style={{ color: '#94a3b8' }}>{hoveredCellData.lat?.toFixed(1)}°S, {hoveredCellData.lon?.toFixed(1)}°E</span></div>
-              <div>Danger: <span style={{ color: (hoveredCellData.composite_risk ?? 0) > 0.3 ? '#ef4444' : '#10b981', fontWeight: 700 }}>{((hoveredCellData.composite_risk ?? 0) * 100).toFixed(0)}%</span></div>
-            </div>
-          ) : (
-            <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
-              Point at any hexagon to see its exact GEBCO depth, wave height, and wind speed.
-            </div>
-          )}
         </div>
 
       </div>

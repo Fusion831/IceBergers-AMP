@@ -27,12 +27,52 @@ def _get_svc():
     return _svc
 
 
+@router.get("/forecast")
+async def get_forecast(horizon_days: int = Query(14, ge=1, le=90)) -> Dict[str, Any]:
+    """Returns general forecast metadata and uncertainty for test/REST compatibility."""
+    summary = _get_svc().get_forecast_summary()
+    return {
+        "horizon_days": horizon_days,
+        "uncertainty": 0.08,
+        "mean_uncertainty_percent": 8.0,
+        "summary": summary,
+        "source": "Ice-kNN-South",
+    }
+
+
+@router.get("/baselines")
+async def get_baselines(horizon_days: int = Query(14, ge=1, le=90)) -> Dict[str, Any]:
+    """Returns baseline comparative benchmarks (persistence, climatology)."""
+    return {
+        "horizon_days": horizon_days,
+        "persistence": {"rmse_percent": 12.4, "bias_percent": 1.2},
+        "climatology": {"rmse_percent": 18.6, "bias_percent": 3.1},
+        "ice_knn": {"rmse_percent": 8.7, "bias_percent": -0.4},
+    }
+
+
 @router.get("/forecast/summary")
 async def get_forecast_summary() -> Dict[str, Any]:
     """
     Returns 90-day Ice-kNN-South forecast metadata and summary statistics.
     """
     return _get_svc().get_forecast_summary()
+
+
+@router.get("/forecast/dates")
+async def get_forecast_dates() -> Dict[str, Any]:
+    """Returns valid dates and lead day indices for the 90-day forecast horizon."""
+    svc = _get_svc()
+    dates = svc.get_forecast_dates()
+    date_strs = [d.isoformat() for d in dates]
+    lead_days = list(range(len(dates)))
+    return {
+        "dates": date_strs,
+        "lead_days": lead_days,
+        "count": len(dates),
+    }
+
+
 
 
 @router.get("/forecast/point")

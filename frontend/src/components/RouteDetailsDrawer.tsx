@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Navigation, Fuel, Shield, Clock, Compass, Anchor, MapPin, Eye, EyeOff } from 'lucide-react';
+import { X, Fuel, Shield, Clock, Compass, Anchor, MapPin, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { RouteAlternative } from '../types/mission';
 import { useMission } from '../context/MissionContext';
 
@@ -12,57 +12,29 @@ interface RouteDetailsDrawerProps {
   onOpenRiskVisualizer?: () => void;
 }
 
-const STABLE_ROUTE_COLORS: Record<string, string> = {
-  fastest: '#3b82f6',
-  shortest: '#f59e0b',
-  safest: '#10b981',
+const COLORS: Record<string, string> = {
+  fastest:        '#3b82f6',
+  shortest:       '#f59e0b',
+  safest:         '#22c55e',
   fuel_efficient: '#a855f7',
-  balanced: '#06b6d4'
+  balanced:       '#14b8a6'
 };
 
-const ROUTE_PRIORITIZATIONS: Record<string, {
-  headline: string;
-  prioritizes: string;
-  calculationRationale: string;
-  speedRecommendation: string;
-  riskClassification: string;
-}> = {
-  safest: {
-    headline: 'SAFEST CORRIDOR',
-    prioritizes: 'Lowest Composite Risk Score & Maximum Obstacle Clearance',
-    calculationRationale: 'Penalizes sea ice concentration >10% SIC and enforces a minimum 30–50 NM safety perimeter around all 73 drifting icebergs and ice shelf grounding zones. Steers around severe Southern Ocean wave storm tracks even though it adds 250 NM extra distance.',
-    speedRecommendation: '6.36 knots safe maneuver speed in ice-adjacent waters',
-    riskClassification: 'Low Obstacle Risk (0.231 Composite Score)'
-  },
-  fastest: {
-    headline: 'FASTEST CORRIDOR',
-    prioritizes: 'Shortest Mission Transit Elapsed Time',
-    calculationRationale: 'Maintains high cruising speed (9.15 knots) and aligns vessel heading with eastward Antarctic Circumpolar Current (ACC) flow. Reaches Bharati Station in just 12.1 sailing days (34.5 days total return voyage), accepting higher engine load and higher fuel consumption (821.8 MT).',
-    speedRecommendation: '9.15 knots full operational service speed',
-    riskClassification: 'Moderate Encounter Risk (0.238 Composite Score)'
-  },
-  shortest: {
-    headline: 'SHORTEST CORRIDOR',
-    prioritizes: 'Minimum Geometric Distance Sailed',
-    calculationRationale: 'Follows the spherical great-circle orthodromic geodesic between waypoints, covering exactly 6,544.6 NM (the absolute least nautical miles over water). Sails directly across standard Southern Ocean latitudes.',
-    speedRecommendation: '7.00 knots standard cruising speed',
-    riskClassification: 'Moderate Risk (0.237 Composite Score)'
-  },
-  fuel_efficient: {
-    headline: 'FUEL-EFFICIENT CORRIDOR',
-    prioritizes: 'Minimum Marine Diesel Bunker Fuel Consumption',
-    calculationRationale: 'Implements slow-steaming operational doctrine at 5.37 knots. Because vessel fuel consumption scales with the cube of speed (Fuel ∝ v³), slowing down slashes total fuel burn from 821.8 MT to 351.7 MT — fitting within Sagar Kanya\'s 368 MT bunker capacity without needing tanker resupply.',
-    speedRecommendation: '5.37 knots economical slow-steaming speed',
-    riskClassification: 'Lowest Operational Risk (0.113 Composite Score)'
-  },
-  balanced: {
-    headline: 'BALANCED CORRIDOR',
-    prioritizes: 'Weighted Tradeoff (40% Fuel Economy, 35% Safety, 25% Schedule)',
-    calculationRationale: 'Solves a multi-objective Pareto optimization balancing fuel economy, obstacle standoff margin, and science schedule. Sails at 7.5 knots cruising speed with an intermediate risk profile (0.195).',
-    speedRecommendation: '7.50 knots balanced cruise speed',
-    riskClassification: 'Balanced Low-Moderate Risk (0.195 Composite Score)'
-  }
+const PRIORITY_TEXT: Record<string, string> = {
+  fastest:        'Gets the mission done in the shortest time. Runs at 11.5 kt and catches the Antarctic Circumpolar Current (free +0.3–0.5 kt boost). Highest fuel use in return for less time at sea.',
+  shortest:       'Fewest nautical miles — follows the most direct line between Cape Town, Bharati, and Maitri. Standard cruise speed (9 kt). Good all-round balance of time and fuel.',
+  safest:         'Stays well away from sea ice, icebergs, and the worst storm swell. Deliberately loops wide of the coast. Moderate speed (8 kt) to reduce hull stress. Best when crew safety is the top priority.',
+  fuel_efficient: 'Runs at slow-steam speed (7.2 kt). Because engine power scales with speed cubed, going 20% slower saves around 40% of fuel. Aligned with ocean currents for a free boost. Takes the longest.',
+  balanced:       'A middle ground between speed, fuel, and safety. Runs at 8.5 kt — faster than slow-steam but not flat-out. Keeps a buffer from the worst ice without adding much extra distance.',
 };
+
+// Small label row
+const Row: React.FC<{ label: string; value: string; accent?: boolean; warn?: boolean }> = ({ label, value, accent, warn }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.42)', fontWeight: 400 }}>{label}</span>
+    <span style={{ fontSize: '12px', fontWeight: 600, color: warn ? '#f87171' : accent ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)' }}>{value}</span>
+  </div>
+);
 
 export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
   isOpen,
@@ -76,12 +48,29 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
 
   if (!isOpen || !route) return null;
 
-  const color = STABLE_ROUTE_COLORS[route.id] || route.color || '#3b82f6';
-  const totalDays = route.durationDays || route.transitDays || 25;
-  const transitDays = route.transitDays || 20;
-  const dwellDays = route.dwellDays || 5;
-  const priorityInfo = ROUTE_PRIORITIZATIONS[route.id] || ROUTE_PRIORITIZATIONS['fastest'];
+  const color = COLORS[route.id] || route.color || '#3b82f6';
   const isVisible = enabledRoutes[route.id] !== false;
+
+  const totalDays   = route.durationDays ?? 0;
+  const sailingDays = (route as any).sailingDays ?? route.transitDays ?? 0;
+  const dwellDays   = (route as any).dwellDays ?? 5.0;
+  const fuel        = route.estimatedFuelMT || 0;
+  const capacity    = (route as any).fuelCapacityMT || 368.05;
+  const meanSOG     = (route as any).meanSOG ?? 0;
+  const meanSTW     = (route as any).meanSTW ?? 0;
+  const fuelWarn    = fuel > capacity;
+  const enduranceWarn = totalDays > 45.0;
+  const isFeasible  = (route as any).isFeasible !== false;
+
+  const bharatiArrival = route.bharatiArrival
+    ? new Date(route.bharatiArrival).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  const maitriArrival = route.maitriArrival
+    ? new Date(route.maitriArrival).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  const returnArrival = route.capeTownReturn
+    ? new Date(route.capeTownReturn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
 
   return (
     <div
@@ -89,14 +78,15 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
         position: 'absolute',
         top: '60px',
         right: '12px',
-        bottom: '60px',
-        width: '420px',
+        bottom: '52px',
+        width: '380px',
         maxWidth: 'calc(100vw - 24px)',
         zIndex: 50,
-        background: '#0a0f1d',
-        border: `1.5px solid ${color}`,
+        background: 'rgba(7, 11, 20, 0.96)',
+        backdropFilter: 'blur(16px)',
+        border: `1px solid ${color}40`,
+        borderTop: `2px solid ${color}`,
         borderRadius: '6px',
-        boxShadow: '0 16px 48px rgba(0, 0, 0, 0.85)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -104,295 +94,168 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
         fontFamily: 'system-ui, -apple-system, sans-serif'
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          padding: '12px 16px',
-          background: '#131d31',
-          borderBottom: '1px solid #1e2c45',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Navigation size={18} color={color} />
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc' }}>
-              {route.name}
-            </div>
-            <div style={{ fontSize: '11px', color: color, fontWeight: 700 }}>
-              {priorityInfo.headline}
-            </div>
+      {/* ── Header ── */}
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {route.name}
+          </div>
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '1px' }}>
+            Cape Town → Bharati → Maitri → Cape Town
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Toggle route visibility on map */}
-          <button
-            onClick={() => toggleRouteEnabled(route.id)}
-            title={isVisible ? 'Hide this path on map' : 'Show this path on map'}
-            style={{
-              background: isVisible ? 'rgba(56, 189, 248, 0.15)' : '#1e293b',
-              border: `1px solid ${isVisible ? color : '#475569'}`,
-              color: isVisible ? color : '#94a3b8',
-              cursor: 'pointer',
-              padding: '3px 7px',
-              borderRadius: '3px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '10px',
-              fontWeight: 700
-            }}
-          >
-            {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
-            <span>{isVisible ? 'ON MAP' : 'HIDDEN'}</span>
-          </button>
+        {/* Show/hide toggle */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleRouteEnabled(route.id); }}
+          title={isVisible ? 'Hide this route on the map' : 'Show this route on the map'}
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: isVisible ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}
+        >
+          {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+          <span>{isVisible ? 'Shown' : 'Hidden'}</span>
+        </button>
 
-          <button
-            onClick={onClose}
-            title="Close details"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              borderRadius: '4px'
-            }}
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+          <X size={18} />
+        </button>
       </div>
 
-      {/* Quick Route Switcher Bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '4px',
-          padding: '8px 12px',
-          background: '#070b14',
-          borderBottom: '1px solid #1e2c45',
-          overflowX: 'auto'
-        }}
-      >
+      {/* ── Route switcher tabs ── */}
+      <div style={{ display: 'flex', padding: '6px 8px', gap: '3px', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto' }}>
         {routes.map((r) => {
+          const rc = COLORS[r.id] || '#94a3b8';
           const isCurrent = r.id === route.id;
-          const rColor = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
-          const rVisible = enabledRoutes[r.id] !== false;
           return (
             <button
               key={r.id}
               onClick={() => onSelectRoute(r.id)}
               style={{
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: isCurrent ? 800 : 600,
-                color: isCurrent ? '#ffffff' : '#94a3b8',
-                background: isCurrent ? rColor : 'transparent',
-                border: `1px solid ${isCurrent ? rColor : '#22324e'}`,
-                borderRadius: '4px',
+                padding: '4px 10px',
+                fontSize: '10.5px',
+                fontWeight: isCurrent ? 700 : 400,
+                color: isCurrent ? '#fff' : 'rgba(255,255,255,0.4)',
+                background: isCurrent ? `${rc}22` : 'transparent',
+                border: 'none',
+                borderBottom: isCurrent ? `2px solid ${rc}` : '2px solid transparent',
+                borderRadius: '3px 3px 0 0',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                opacity: rVisible ? 1.0 : 0.45
+                transition: 'all 0.12s ease'
               }}
             >
-              {r.name.split(' ')[0]}
+              {(r.objective || r.id).replace('_', ' ')}
             </button>
           );
         })}
       </div>
 
-      {/* Scrollable Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        
-        {/* Transparent Optimization Prioritization Card (NON-AI) */}
-        <div style={{ background: '#111a2e', padding: '12px', borderRadius: '5px', border: `1.5px solid ${color}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: color, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              WHAT THIS ROUTE PRIORITIZES
+      {/* ── Scrollable body ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Constraint warnings */}
+        {(!isFeasible || fuelWarn || enduranceWarn) && (
+          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 10px', display: 'flex', gap: '8px' }}>
+            <AlertTriangle size={14} color="#f87171" style={{ flexShrink: 0, marginTop: '1px' }} />
+            <div style={{ fontSize: '11px', color: '#fca5a5', lineHeight: '1.5' }}>
+              {enduranceWarn && <div>Total mission ({totalDays.toFixed(1)} d) exceeds the published 45-day endurance limit. A fuel stop or range extension would be needed.</div>}
+              {fuelWarn && <div>Estimated fuel ({fuel.toFixed(0)} MT) exceeds tank capacity ({capacity.toFixed(0)} MT).</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Why this route */}
+        <div>
+          <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>
+            What this route prioritizes
+          </div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.78)', lineHeight: '1.6' }}>
+            {PRIORITY_TEXT[route.id] || route.explanation || ''}
+          </div>
+        </div>
+
+        {/* Key numbers */}
+        <div>
+          <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+            Numbers
+          </div>
+          <Row label="Distance" value={`${(route.distanceNM || 0).toLocaleString()} NM`} accent />
+          <Row label="Sailing time" value={`${sailingDays.toFixed(1)} days`} />
+          <Row label="Time at stations (dwell)" value={`${dwellDays.toFixed(0)} days (48 h Bharati + 72 h Maitri)`} />
+          <Row label="Total mission time" value={`${totalDays.toFixed(1)} days`} accent warn={enduranceWarn} />
+          <Row label="Average speed (SOG)" value={`${meanSOG.toFixed(2)} kt`} />
+          <Row label="Engine speed (STW)" value={`${meanSTW.toFixed(2)} kt`} />
+          <Row label="Fuel estimated" value={`${fuel.toFixed(0)} MT of ${capacity.toFixed(0)} MT capacity`} warn={fuelWarn} />
+          <Row label="Average route risk" value={`${((route.meanRisk || 0) * 100).toFixed(1)}%`} />
+          <Row label="Peak risk segment" value={`${((route.maxRisk || 0) * 100).toFixed(1)}%`} />
+        </div>
+
+        {/* Itinerary */}
+        <div>
+          <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+            Itinerary
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            {[
+              { label: 'Cape Town — Departure', coord: '33.9249°S, 18.4241°E', sub: 'Departure: 1 Jan 2024', color: '#94a3b8' },
+              { label: 'Bharati Maritime Access', coord: '69.4000°S, 76.1900°E', sub: `Estimated arrival: ${bharatiArrival} · 48 h station dwell`, color: '#14b8a6' },
+              { label: 'Maitri Maritime Access', coord: '69.9500°S, 11.7300°E', sub: `Estimated arrival: ${maitriArrival} · 72 h station dwell`, color: '#22c55e' },
+              { label: 'Cape Town — Return', coord: '33.9249°S, 18.4241°E', sub: `Estimated return: ${returnArrival}`, color: '#f59e0b' },
+            ].map((stop, i, arr) => (
+              <div key={i} style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: stop.color, marginTop: '4px' }} />
+                  {i < arr.length - 1 && (
+                    <div style={{ width: '1px', flex: 1, background: 'rgba(255,255,255,0.1)', minHeight: '20px', marginTop: '2px' }} />
+                  )}
+                </div>
+                <div style={{ paddingBottom: '14px', flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{stop.label}</span>
+                    <span style={{ fontSize: '10px', color: stop.color, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{stop.coord}</span>
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{stop.sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Risk breakdown link */}
+        {onOpenRiskVisualizer && (
+          <button
+            onClick={onOpenRiskVisualizer}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '5px',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '11px',
+              textAlign: 'left',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Shield size={13} />
+              Compare risk scores across all 5 routes
             </span>
-            <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '2px 5px', borderRadius: '3px', fontWeight: 700 }}>
-              ALGORITHMIC TARGET
-            </span>
-          </div>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+          </button>
+        )}
 
-          <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', marginBottom: '6px' }}>
-            {priorityInfo.prioritizes}
-          </div>
-
-          <div style={{ fontSize: '11.5px', color: '#cbd5e1', lineHeight: '1.45', background: '#0a0f1d', padding: '8px 10px', borderRadius: '4px', border: '1px solid #1a263d' }}>
-            {priorityInfo.calculationRationale}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '10.5px', color: '#94a3b8' }}>
-            <span>Recommended Speed: <strong style={{ color: '#f8fafc' }}>{priorityInfo.speedRecommendation}</strong></span>
-          </div>
-        </div>
-
-        {/* Key Metrics Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          
-          {/* Travel Days */}
-          <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8' }}>
-              <Clock size={13} color="#38bdf8" />
-              <span>TOTAL TIME</span>
+        {/* Ship specs */}
+        <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Anchor size={14} color="rgba(255,255,255,0.35)" />
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>ORV Sagar Kanya (MoES / NCPOR)</div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>
+              LOA 100.3 m · Draft 5.6 m · 433 m³ bunker (~368 MT) · 45-day endurance
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', marginTop: '4px' }}>
-              {totalDays.toFixed(1)} Days
-            </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-              {transitDays.toFixed(1)}d sailing + {dwellDays.toFixed(0)}d in port
-            </div>
-          </div>
-
-          {/* Total Distance */}
-          <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8' }}>
-              <Compass size={13} color="#f59e0b" />
-              <span>DISTANCE</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', marginTop: '4px' }}>
-              {route.distanceNM.toLocaleString()} NM
-            </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-              Around Antarctica & return
-            </div>
-          </div>
-
-          {/* Fuel Needed */}
-          <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8' }}>
-              <Fuel size={13} color="#a855f7" />
-              <span>FUEL REQUIRED</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: route.estimatedFuelMT > 368 ? '#ef4444' : '#10b981', marginTop: '4px' }}>
-              {route.estimatedFuelMT.toFixed(0)} Tons
-            </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-              {route.estimatedFuelMT > 368 ? 'Exceeds 368T (Refueling needed)' : 'Within 368T bunker capacity'}
-            </div>
-          </div>
-
-          {/* Risk Level */}
-          <div style={{ background: '#111a2e', padding: '10px', borderRadius: '4px', border: '1px solid #22324e' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8' }}>
-                <Shield size={13} color={route.meanRisk < 0.18 ? '#10b981' : '#f59e0b'} />
-                <span>RISK SCORE</span>
-              </div>
-              {onOpenRiskVisualizer && (
-                <button
-                  onClick={onOpenRiskVisualizer}
-                  style={{
-                    fontSize: '9px',
-                    color: '#38bdf8',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  Inspect
-                </button>
-              )}
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: route.meanRisk < 0.18 ? '#10b981' : '#f59e0b', marginTop: '4px' }}>
-              {(route.meanRisk * 100).toFixed(1)}%
-            </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-              Max segment risk: {(route.maxRisk * 100).toFixed(1)}%
-            </div>
-          </div>
-        </div>
-
-        {/* Expedition Waypoint Itinerary with Coordinates (EXPOSED) */}
-        <div style={{ background: '#111a2e', padding: '12px', borderRadius: '4px', border: '1px solid #22324e' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, color: '#f8fafc', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <MapPin size={14} color="#10b981" />
-            <span>WAYPOINTS & COORDINATES (FIRST GOL)</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            
-            {/* Departure */}
-            <div style={{ borderLeft: '2px solid #38bdf8', paddingLeft: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  Departure: Cape Town Gateway
-                </span>
-                <span style={{ fontSize: '9.5px', color: '#38bdf8', fontFamily: 'monospace', fontWeight: 700 }}>
-                  33.92°S, 18.42°E
-                </span>
-              </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
-                Table Bay Harbor, South Africa • Departure Staging
-              </div>
-            </div>
-
-            {/* Leg 1 */}
-            <div style={{ borderLeft: '2px solid #14b8a6', paddingLeft: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  Stop 1: Bharati Maritime Access
-                </span>
-                <span style={{ fontSize: '9.5px', color: '#14b8a6', fontFamily: 'monospace', fontWeight: 700 }}>
-                  69.40°S, 76.19°E
-                </span>
-              </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
-                Prydz Bay, Larsemann Hills • <strong>48 Hours anchorage dwell</strong> for cargo offload
-              </div>
-            </div>
-
-            {/* Leg 2 */}
-            <div style={{ borderLeft: '2px solid #10b981', paddingLeft: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  Stop 2: Maitri Maritime Access (India Bay)
-                </span>
-                <span style={{ fontSize: '9.5px', color: '#10b981', fontFamily: 'monospace', fontWeight: 700 }}>
-                  69.95°S, 11.73°E
-                </span>
-              </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
-                Princess Astrid Coast, Lazarev Sea • <strong>72 Hours shelf mooring</strong> for crew handover
-              </div>
-            </div>
-
-            {/* Leg 3 */}
-            <div style={{ borderLeft: '2px solid #f59e0b', paddingLeft: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  Return: Cape Town Gateway
-                </span>
-                <span style={{ fontSize: '9.5px', color: '#f59e0b', fontFamily: 'monospace', fontWeight: 700 }}>
-                  33.92°S, 18.42°E
-                </span>
-              </div>
-              <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>
-                Northbound transit across the Southern Ocean back to home port
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Assigned Ship Specs */}
-        <div style={{ background: '#0a0f1d', padding: '10px 12px', borderRadius: '4px', border: '1px solid #1e2c45', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Anchor size={16} color="#38bdf8" />
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc' }}>ORV Sagar Kanya (MoES)</div>
-              <div style={{ fontSize: '9.5px', color: '#64748b' }}>Draft: 5.6m • Fuel Bunker: 368 MT • Marginal Ice Zone</div>
-            </div>
-          </div>
-          <div style={{ fontSize: '10px', color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '3px' }}>
-            VALIDATED
           </div>
         </div>
 

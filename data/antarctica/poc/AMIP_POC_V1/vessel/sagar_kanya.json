@@ -1,0 +1,48 @@
+{
+  "vessel_id": "orv_sagar_kanya",
+  "name": "ORV Sagar Kanya",
+  "vessel_type": "Oceanographic Research Vessel",
+  "owner": "Ministry of Earth Sciences (MoES) / National Centre for Polar and Ocean Research (NCPOR)",
+  "operator": "Shipping Corporation of India (SCI)",
+  "provenance_metadata": {
+    "specifications_source": "Published NCPOR Fleet Records & 2026 Sagar Kanya Maintenance Tender",
+    "classifications": {
+      "LOA": "PUBLISHED (100.34 m)",
+      "Beam": "PUBLISHED (16.39 m)",
+      "Draft": "PUBLISHED (5.60 m)",
+      "Cruising_Speed": "PUBLISHED (8-10 knots official range; 9.0 kt nominal)",
+      "Balanced_Operating_Speed": "USER_CONFIGURED (7.5 knots)",
+      "Endurance_Days": "PUBLISHED (45 days continuous unassisted voyage)",
+      "Bunker_Capacity_M3": "PUBLISHED (433 m\u00b3)",
+      "Bunker_Capacity_MT": "DERIVED (368.05 MT based on MGO density assumption 0.85 t/m\u00b3 at 15\u00b0C)",
+      "Operational_SIC_Limit": "USER_CONFIGURED (15% SIC for safe open-water research operations)"
+    }
+  },
+  "geometry": {
+    "length_overall_m": 100.34,
+    "beam_extreme_m": 16.39,
+    "maximum_draft_m": 5.6,
+    "under_keel_clearance_safety_m": 3.0
+  },
+  "speed": {
+    "cruising_speed_range_knots": [
+      8.0,
+      10.0
+    ],
+    "nominal_cruise_speed_knots": 9.0,
+    "configured_balanced_target_speed_kt": 7.5,
+    "min_operating_speed_knots": 4.0,
+    "max_operating_speed_knots": 12.0
+  },
+  "endurance_and_fuel": {
+    "endurance_days_published": 45,
+    "fuel_capacity_m3": 433.0,
+    "fuel_density_assumption": 0.85,
+    "fuel_capacity_metric_tonnes_derived": 368.05,
+    "model_status": "model_estimated (cubic propulsion power + auxiliary hotel load)"
+  },
+  "ice_operational_limits": {
+    "configured_operational_sic_limit": 0.15,
+    "policy": "Avoid compact pack ice > 15%; seek open-water polynya corridors; no silent 1.5-kt crawl"
+  }
+}

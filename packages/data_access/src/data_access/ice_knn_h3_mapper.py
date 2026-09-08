@@ -2,6 +2,8 @@
 H3 Sea-Ice Mapper for Ice-kNN-South NetCDF Forecasts.
 Projects the 90-day gridded NetCDF sea-ice predictions onto the canonical
 AMIP H3 resolution 5 cells, respecting land masks and bathymetric boundaries.
+Explicitly identifies cells outside native polar satellite coverage (e.g. Cape Town)
+as OUTSIDE_NATIVE_SIC_DOMAIN with sic=0.0 under explicit POC policy.
 """
 
 from __future__ import annotations
@@ -22,6 +24,8 @@ class IceKNNH3Mapper:
     """
     Maps 90-day Ice-kNN-South regular lat-lon predictions onto canonical AMIP H3 cells.
     """
+
+    NATIVE_DOMAIN_NORTHERN_LIMIT = -45.0  # Degrees south
 
     def __init__(
         self,
@@ -60,7 +64,8 @@ class IceKNNH3Mapper:
         Returns columns:
             [cell_id, lead_day, valid_time, centroid_lat, centroid_lon,
              sea_ice_concentration, sea_ice_percent, sea_ice_uncertainty,
-             uncertainty_percent, sic_q05, sic_q95, sic_clim, is_blocked, provenance]
+             uncertainty_percent, sic_q05, sic_q95, sic_clim, is_blocked,
+             coverage_status, status, source, forecast_reference, provenance]
         """
         grid = self.grid_df
         ds = self.forecast_ds
@@ -90,7 +95,7 @@ class IceKNNH3Mapper:
         for i in range(num_cells):
             c_lat = lats[i]
             c_lon = lons[i] % 360.0
-            if c_lat <= forecast_lats.max():
+            if c_lat <= min(self.NATIVE_DOMAIN_NORTHERN_LIMIT, float(forecast_lats.max())):
                 in_antarctic_domain[i] = True
                 lat_indices[i] = int(np.argmin(np.abs(forecast_lats - c_lat)))
                 lon_indices[i] = int(np.argmin(np.abs(forecast_lons - c_lon)))
@@ -111,12 +116,14 @@ class IceKNNH3Mapper:
                 blocked = bool(is_blocked[i])
 
                 if not in_antarctic_domain[i]:
-                    # North of Antarctic ice zone (-45 deg): open water
+                    # North of Antarctic ice zone (-45 deg): open water outside domain
                     sic_pct = 0.0
                     unc_pct = 0.0
                     q05_pct = 0.0
                     q95_pct = 0.0
                     clim_pct = 0.0
+                    coverage_status = "OUTSIDE_NATIVE_SIC_DOMAIN"
+                    status = "OPEN_WATER_POC_POLICY"
                 else:
                     l_idx = lat_indices[i]
                     o_idx = lon_indices[i]
@@ -125,6 +132,8 @@ class IceKNNH3Mapper:
                     q05_pct = float(lead_day_q05[l_idx, o_idx])
                     q95_pct = float(lead_day_q95[l_idx, o_idx])
                     clim_pct = float(lead_day_clim[l_idx, o_idx])
+                    coverage_status = "WITHIN_NATIVE_SIC_DOMAIN"
+                    status = "OPERATIONAL"
 
                 # Handle NaNs and bounds
                 sic_pct = float(np.clip(np.nan_to_num(sic_pct, nan=0.0), 0.0, 100.0))
@@ -141,12 +150,17 @@ class IceKNNH3Mapper:
                     "centroid_lon": c_lon,
                     "sea_ice_concentration": round(sic_pct / 100.0, 4),
                     "sea_ice_percent": round(sic_pct, 2),
+                    "sic_percent": round(sic_pct, 2),
                     "sea_ice_uncertainty": round(unc_pct / 100.0, 4),
                     "uncertainty_percent": round(unc_pct, 2),
                     "sic_q05": round(q05_pct / 100.0, 4),
                     "sic_q95": round(q95_pct / 100.0, 4),
                     "sic_clim": round(clim_pct / 100.0, 4),
                     "is_blocked": blocked,
+                    "coverage_status": coverage_status,
+                    "status": status,
+                    "source": "Ice-kNN-South",
+                    "forecast_reference": "DOI: 10.1029/2024JH000433",
                     "provenance": "Ice-kNN-South+NetCDF4",
                 })
 

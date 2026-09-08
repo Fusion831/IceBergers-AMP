@@ -1,0 +1,110 @@
+[
+  {
+    "objective": "FASTEST",
+    "name": "Fastest Minimum-Duration Corridor",
+    "distanceNM": 6562.5,
+    "durationDays": 34.85,
+    "durationHours": 836.3,
+    "sailingDays": 29.85,
+    "dwellDays": 5.0,
+    "estimatedFuelMT": 406.0,
+    "meanRisk": 0.238,
+    "maxRisk": 0.483,
+    "meanSOG": 9.06,
+    "meanSTW": 9.06,
+    "isFeasible": false,
+    "warnings": [
+      "POTENTIAL FUEL/ENDURANCE CONSTRAINT: Estimated fuel 406.0 MT exceeds derived capacity 368.1 MT (density assumption 0.85 t/m\u00b3)"
+    ],
+    "bharatiArrival": "2024-01-13T08:56:06+00:00",
+    "maitriArrival": "2024-01-24T01:49:15.600000+00:00",
+    "capeTownReturn": "2024-02-04T20:18:17.967383+00:00"
+  },
+  {
+    "objective": "SHORTEST",
+    "name": "Shortest Great-Circle Corridor",
+    "distanceNM": 6544.3,
+    "durationDays": 43.79,
+    "durationHours": 1051.0,
+    "sailingDays": 38.79,
+    "dwellDays": 5.0,
+    "estimatedFuelMT": 491.1,
+    "meanRisk": 0.238,
+    "maxRisk": 0.483,
+    "meanSOG": 6.93,
+    "meanSTW": 6.93,
+    "isFeasible": false,
+    "warnings": [
+      "POTENTIAL FUEL/ENDURANCE CONSTRAINT: Estimated fuel 491.1 MT exceeds derived capacity 368.1 MT (density assumption 0.85 t/m\u00b3)"
+    ],
+    "bharatiArrival": "2024-01-17T05:38:24+00:00",
+    "maitriArrival": "2024-01-30T04:16:19.200000+00:00",
+    "capeTownReturn": "2024-02-13T18:59:38.200607+00:00"
+  },
+  {
+    "objective": "SAFEST",
+    "name": "Safest Low-Ice Outer Corridor",
+    "distanceNM": 6794.2,
+    "durationDays": 53.93,
+    "durationHours": 1294.4,
+    "sailingDays": 48.93,
+    "dwellDays": 5.0,
+    "estimatedFuelMT": 497.1,
+    "meanRisk": 0.232,
+    "maxRisk": 0.483,
+    "meanSOG": 5.66,
+    "meanSTW": 5.66,
+    "isFeasible": false,
+    "warnings": [
+      "POTENTIAL FUEL/ENDURANCE CONSTRAINT: Estimated fuel 497.1 MT exceeds derived capacity 368.1 MT (density assumption 0.85 t/m\u00b3)",
+      "ENDURANCE WARNING: Total voyage duration 53.9 days exceeds published 45-day endurance limit"
+    ],
+    "bharatiArrival": "2024-01-21T19:41:34.800000+00:00",
+    "maitriArrival": "2024-02-05T19:33:46.800000+00:00",
+    "capeTownReturn": "2024-02-23T22:23:25.084376+00:00"
+  },
+  {
+    "objective": "FUEL_EFFICIENT",
+    "name": "Fuel-Efficient Slow-Steaming Corridor",
+    "distanceNM": 6961.7,
+    "durationDays": 79.07,
+    "durationHours": 1897.7,
+    "sailingDays": 74.07,
+    "dwellDays": 5.0,
+    "estimatedFuelMT": 464.2,
+    "meanRisk": 0.114,
+    "maxRisk": 0.179,
+    "meanSOG": 4.07,
+    "meanSTW": 3.96,
+    "isFeasible": false,
+    "warnings": [
+      "POTENTIAL FUEL/ENDURANCE CONSTRAINT: Estimated fuel 464.2 MT exceeds derived capacity 368.1 MT (density assumption 0.85 t/m\u00b3)",
+      "ENDURANCE WARNING: Total voyage duration 79.1 days exceeds published 45-day endurance limit"
+    ],
+    "bharatiArrival": "2024-02-01T06:14:19.075924+00:00",
+    "maitriArrival": "2024-02-22T15:02:53.143564+00:00",
+    "capeTownReturn": "2024-03-20T01:39:48.756966+00:00"
+  },
+  {
+    "objective": "BALANCED",
+    "name": "Balanced Multi-Objective Corridor",
+    "distanceNM": 6934.1,
+    "durationDays": 56.46,
+    "durationHours": 1355.1,
+    "sailingDays": 51.46,
+    "dwellDays": 5.0,
+    "estimatedFuelMT": 562.9,
+    "meanRisk": 0.116,
+    "maxRisk": 0.181,
+    "meanSOG": 5.88,
+    "meanSTW": 5.76,
+    "isFeasible": false,
+    "warnings": [
+      "POTENTIAL FUEL/ENDURANCE CONSTRAINT: Estimated fuel 562.9 MT exceeds derived capacity 368.1 MT (density assumption 0.85 t/m\u00b3)",
+      "ENDURANCE WARNING: Total voyage duration 56.5 days exceeds published 45-day endurance limit"
+    ],
+    "bharatiArrival": "2024-01-22T17:00:59.855646+00:00",
+    "maitriArrival": "2024-02-07T16:32:39.385327+00:00",
+    "capeTownReturn": "2024-02-26T11:08:40.721306+00:00"
+  }
+]

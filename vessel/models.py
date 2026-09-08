@@ -267,9 +267,18 @@ class VesselProfile(BaseModel):
     def cruising_speed_knots(self) -> float:
         return float(self.speed.cruise_speed_knots.value)
 
+    @cruising_speed_knots.setter
+    def cruising_speed_knots(self, val: float) -> None:
+        self.speed.cruise_speed_knots.value = val
+
     @property
     def service_speed_knots(self) -> float:
         return self.cruising_speed_knots
+
+    @service_speed_knots.setter
+    def service_speed_knots(self, val: float) -> None:
+        self.speed.cruise_speed_knots.value = val
+
 
     @property
     def min_speed_knots(self) -> float:
@@ -290,6 +299,27 @@ class VesselProfile(BaseModel):
     @property
     def fuel_capacity_mt(self) -> float:
         return float(self.endurance_and_fuel.fuel_capacity_metric_tonnes.value)
+
+    @property
+    def fuel_density_assumption(self) -> float:
+        return 0.85
+
+    @property
+    def fuel_capacity_metric_tonnes_derived(self) -> float:
+        return float(self.endurance_and_fuel.fuel_capacity_metric_tonnes.value)
+
+    @property
+    def endurance_days_published(self) -> int:
+        return int(self.endurance_and_fuel.endurance_days.value)
+
+    @property
+    def configured_balanced_target_speed_kt(self) -> float:
+        return 7.5
+
+    @property
+    def configured_operational_sic_limit(self) -> float:
+        return float(self.ice_capability.max_operational_sic.value)
+
 
     @property
     def max_navigable_sic(self) -> float:

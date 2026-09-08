@@ -8,78 +8,21 @@ interface PathRiskVisualizerProps {
   onSelectRoute: (id: string) => void;
 }
 
-const ROUTE_RISK_PROFILES: Record<string, {
-  name: string;
-  color: string;
-  compositeRisk: number; // 0.0 to 1.0
-  maxRisk: number;
-  icebergHazard: string;
-  seaIceExposure: string;
-  waveSeverity: string;
-  depthClearance: string;
-  prioritizes: string;
-  sailingSpeed: string;
-}> = {
-  safest: {
-    name: 'Safest Corridor',
-    color: '#10b981',
-    compositeRisk: 0.231,
-    maxRisk: 0.483,
-    icebergHazard: 'Lowest (30-50 NM Standoff)',
-    seaIceExposure: '5.8% (Avoids pack ice >10%)',
-    waveSeverity: 'Low (Steers north of storm tracks)',
-    depthClearance: '>1,200m deep water only',
-    prioritizes: 'Lowest obstacle hazard & maximum clearance from drifting bergs',
-    sailingSpeed: '6.36 knots safe speed'
-  },
-  fuel_efficient: {
-    name: 'Fuel-Efficient Corridor',
-    color: '#a855f7',
-    compositeRisk: 0.113,
-    maxRisk: 0.181,
-    icebergHazard: 'Very Low (Slow Steaming Vigilance)',
-    seaIceExposure: '2.8% (Open-water preferential)',
-    waveSeverity: 'Low (Favorable current alignment)',
-    depthClearance: '>2,000m abyssal plain',
-    prioritizes: 'Minimum marine diesel burn (351.7 Tons vs 368 Ton bunker capacity)',
-    sailingSpeed: '5.37 knots slow steaming'
-  },
-  balanced: {
-    name: 'Balanced Corridor',
-    color: '#06b6d4',
-    compositeRisk: 0.195,
-    maxRisk: 0.350,
-    icebergHazard: 'Low / Moderate',
-    seaIceExposure: '4.8% average exposure',
-    waveSeverity: 'Moderate',
-    depthClearance: '>1,500m clearance',
-    prioritizes: 'Multi-objective compromise: 40% fuel, 35% safety, 25% schedule',
-    sailingSpeed: '7.50 knots cruising'
-  },
-  shortest: {
-    name: 'Shortest Corridor',
-    color: '#f59e0b',
-    compositeRisk: 0.237,
-    maxRisk: 0.483,
-    icebergHazard: 'Moderate (Crosses iceberg drift corridor)',
-    seaIceExposure: '5.9% pack ice exposure',
-    waveSeverity: 'Moderate (Direct crossing)',
-    depthClearance: '>800m',
-    prioritizes: 'Least nautical miles over water (6,544.6 NM great circle)',
-    sailingSpeed: '7.00 knots standard'
-  },
-  fastest: {
-    name: 'Fastest Corridor',
-    color: '#3b82f6',
-    compositeRisk: 0.238,
-    maxRisk: 0.483,
-    icebergHazard: 'Moderate (High encounter rate at speed)',
-    seaIceExposure: '6.0% exposure',
-    waveSeverity: 'Moderate / High (Southern Ocean waves)',
-    depthClearance: '>900m',
-    prioritizes: 'Minimum mission elapsed time (34.5 days total arrival)',
-    sailingSpeed: '9.15 knots high speed'
-  }
+// What each objective prioritizes — simple plain English
+const ROUTE_PRIORITY: Record<string, string> = {
+  fastest:        'Least time at sea. Runs the ship at top speed (11.5 kt) and uses the Antarctic Circumpolar Current for a free boost. Highest fuel use.',
+  shortest:       'Fewest nautical miles. Follows the most direct path between each stop. Speed and fuel are balanced at standard cruise (9 kt).',
+  safest:         'Keeps well away from sea ice, icebergs, and the worst storm swells. Adds distance on purpose to stay in safer water. Speed kept moderate (8 kt).',
+  fuel_efficient: 'Lowest fuel burn. Runs the ship at slow-steam speed (7.2 kt) and stays aligned with ocean currents to reduce engine load. Takes the longest.',
+  balanced:       'Compromise between time, fuel, and safety. Runs at 8.5 kt — faster than slow-steam but not top speed. A sensible default.',
+};
+
+const COLORS: Record<string, string> = {
+  fastest:        '#3b82f6',
+  shortest:       '#f59e0b',
+  safest:         '#22c55e',
+  fuel_efficient: '#a855f7',
+  balanced:       '#14b8a6',
 };
 
 export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
@@ -87,9 +30,13 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
   onClose,
   onSelectRoute
 }) => {
-  const { selectedRouteId, enabledRoutes, toggleRouteEnabled } = useMission();
+  const { routes, selectedRouteId, enabledRoutes, toggleRouteEnabled } = useMission();
 
   if (!isOpen) return null;
+
+  // Sort: safest first, then fastest, then others
+  const orderedIds = ['safest', 'balanced', 'shortest', 'fuel_efficient', 'fastest'];
+  const orderedRoutes = orderedIds.map(id => routes.find(r => r.id === id)).filter(Boolean) as typeof routes;
 
   return (
     <div
@@ -127,56 +74,50 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
           <Gauge size={18} color="#38bdf8" />
           <div>
             <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.3px' }}>
-              EXPEDITION PATH RISK VISUALIZER
+              ROUTE RISK & PRIORITY BREAKDOWN
             </div>
             <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-              Comparative Multi-Factor Safety & Priority Analysis
+              All numbers come from the route calculation — nothing is made up
             </div>
           </div>
         </div>
-
         <button
           onClick={onClose}
-          title="Close Risk Visualizer"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#94a3b8',
-            cursor: 'pointer',
-            padding: '4px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center'
-          }}
+          title="Close"
+          style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
         >
           <X size={20} />
         </button>
       </div>
 
-      {/* Math Formula Card (Transparent, Non-AI) */}
-      <div style={{ padding: '10px 14px', background: '#0d1527', borderBottom: '1px solid #1e2c45', fontSize: '10px', color: '#94a3b8' }}>
-        <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Real Physics Risk Formulation
-        </div>
-        <div>
-          Risk = (<strong>0.35</strong> × Sea Ice) + (<strong>0.30</strong> × Iceberg Drift) + (<strong>0.20</strong> × Waves) + (<strong>0.15</strong> × Shallow Draft)
-        </div>
+      {/* Risk formula explanation */}
+      <div style={{ padding: '8px 14px', background: '#0d1527', borderBottom: '1px solid #1e2c45', fontSize: '10px', color: '#94a3b8' }}>
+        <span style={{ fontWeight: 800, color: '#38bdf8' }}>How risk is scored: </span>
+        35% sea ice + 30% icebergs + 20% wave height + 15% shallow water. Score of 0 = no risk, 1.0 = blocked.
       </div>
 
-      {/* Body List of All Paths */}
+      {/* Route list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {Object.entries(ROUTE_RISK_PROFILES).map(([id, p]) => {
+        {orderedRoutes.map((r) => {
+          const id = r.id;
+          const color = COLORS[id] || '#94a3b8';
           const isSelected = selectedRouteId === id;
           const isVisible = enabledRoutes[id] !== false;
-          const riskPct = Math.round(p.compositeRisk * 100);
+          const riskPct = Math.round((r.meanRisk || 0) * 100);
+          const maxRiskPct = Math.round((r.maxRisk || 0) * 100);
+          const sailingDays = (r as any).sailingDays ?? r.transitDays ?? 0;
+          const meanSOG = (r as any).meanSOG ?? 0;
+          const meanSTW = (r as any).meanSTW ?? 0;
+          const isFeasible = (r as any).isFeasible !== false;
 
           return (
             <div
               key={id}
               onClick={() => onSelectRoute(id)}
               style={{
-                background: isSelected ? 'rgba(30, 58, 138, 0.25)' : '#111a2e',
-                border: `1.5px solid ${isSelected ? p.color : '#233350'}`,
+                background: isSelected ? 'rgba(30, 58, 138, 0.22)' : '#111a2e',
+                border: `1.5px solid ${isSelected ? color : '#233350'}`,
+                borderLeft: `4px solid ${color}`,
                 borderRadius: '5px',
                 padding: '10px 12px',
                 cursor: 'pointer',
@@ -184,82 +125,105 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              {/* Top Row: Path Name, Priority Tag, Toggle */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              {/* Top row: name + active badge + toggle */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: p.color, display: 'inline-block' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
-                    {p.name}
+                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color, display: 'inline-block', boxShadow: isSelected ? `0 0 8px ${color}` : 'none' }} />
+                  <span style={{ fontSize: '12.5px', fontWeight: 800, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                    {r.name}
                   </span>
                   {isSelected && (
-                    <span style={{ fontSize: '9px', background: p.color, color: '#090d16', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                    <span style={{ fontSize: '9px', background: color, color: '#090d16', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
                       ACTIVE
                     </span>
                   )}
+                  {!isFeasible && (
+                    <span style={{ fontSize: '9px', background: '#dc2626', color: '#fff', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                      OVER ENDURANCE
+                    </span>
+                  )}
                 </div>
-
-                {/* Direct Eye / Visibility Toggle */}
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleRouteEnabled(id);
-                  }}
-                  title={isVisible ? `Hide ${p.name} on map` : `Show ${p.name} on map`}
+                  onClick={(e) => { e.stopPropagation(); toggleRouteEnabled(id); }}
+                  title={isVisible ? `Hide on map` : `Show on map`}
                   style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    padding: '2px 8px',
+                    fontSize: '10px', fontWeight: 700, padding: '2px 8px',
                     background: isVisible ? 'rgba(56, 189, 248, 0.15)' : '#1e293b',
                     border: `1px solid ${isVisible ? '#38bdf8' : '#475569'}`,
                     color: isVisible ? '#38bdf8' : '#64748b',
-                    borderRadius: '3px',
-                    cursor: 'pointer'
+                    borderRadius: '3px', cursor: 'pointer'
                   }}
                 >
                   {isVisible ? 'SHOWN' : 'HIDDEN'}
                 </button>
               </div>
 
-              {/* Priority Statement (Simple, Transparent) */}
-              <div style={{ background: '#090d16', padding: '6px 8px', borderRadius: '4px', border: '1px solid #1a263d', marginBottom: '8px' }}>
-                <div style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase' }}>
-                  What this path prioritizes:
+              {/* Priority statement */}
+              <div style={{ background: '#090d16', padding: '5px 8px', borderRadius: '4px', border: '1px solid #1a263d', marginBottom: '8px' }}>
+                <div style={{ fontSize: '9.5px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '2px' }}>
+                  What this route prioritizes:
                 </div>
-                <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '2px', lineHeight: '1.4' }}>
-                  {p.prioritizes}
+                <div style={{ fontSize: '10.5px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                  {ROUTE_PRIORITY[id] || 'General purpose route.'}
                 </div>
               </div>
 
-              {/* Risk Meter Bar */}
+              {/* Risk bar */}
               <div style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', marginBottom: '3px' }}>
-                  <span style={{ color: '#94a3b8' }}>Composite Danger Rating:</span>
-                  <span style={{ fontWeight: 800, color: p.compositeRisk < 0.18 ? '#10b981' : p.compositeRisk < 0.25 ? '#f59e0b' : '#ef4444' }}>
-                    {riskPct}% ({p.compositeRisk.toFixed(3)})
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '3px' }}>
+                  <span style={{ color: '#94a3b8' }}>Average danger along route:</span>
+                  <span style={{ fontWeight: 800, color: riskPct < 18 ? '#10b981' : riskPct < 25 ? '#f59e0b' : '#ef4444' }}>
+                    {riskPct}% avg / {maxRiskPct}% peak
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '5px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
                   <div
                     style={{
-                      width: `${Math.min(riskPct * 2, 100)}%`,
+                      width: `${Math.min(riskPct * 2.5, 100)}%`,
                       height: '100%',
-                      background: p.compositeRisk < 0.18 ? '#10b981' : p.compositeRisk < 0.25 ? p.color : '#ef4444',
+                      background: riskPct < 18 ? '#10b981' : riskPct < 25 ? color : '#ef4444',
                       borderRadius: '3px'
                     }}
                   />
                 </div>
               </div>
 
-              {/* Breakdown Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', fontSize: '10px', color: '#94a3b8' }}>
-                <div>Icebergs: <strong style={{ color: '#f8fafc' }}>{p.icebergHazard}</strong></div>
-                <div>Pack Ice: <strong style={{ color: '#f8fafc' }}>{p.seaIceExposure}</strong></div>
-                <div>Waves / Sea: <strong style={{ color: '#f8fafc' }}>{p.waveSeverity}</strong></div>
-                <div>Water Depth: <strong style={{ color: '#f8fafc' }}>{p.depthClearance}</strong></div>
+              {/* Key metrics grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', fontSize: '9.5px' }}>
+                <div>
+                  <div style={{ color: '#64748b' }}>Distance</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700 }}>{(r.distanceNM || 0).toLocaleString()} NM</div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b' }}>Sailing time</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700 }}>{sailingDays.toFixed(1)} days</div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b' }}>Total (incl. dwell)</div>
+                  <div style={{ color: color, fontWeight: 700 }}>{(r.durationDays ?? 0).toFixed(1)} days</div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b' }}>Mean SOG</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700 }}>{meanSOG.toFixed(2)} kt</div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b' }}>STW (engine)</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700 }}>{meanSTW.toFixed(2)} kt</div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b' }}>Fuel</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700 }}>{(r.estimatedFuelMT || 0).toFixed(0)} MT</div>
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Footer note */}
+      <div style={{ padding: '8px 14px', borderTop: '1px solid #1e2c45', fontSize: '9.5px', color: '#64748b' }}>
+        SOG = Speed Over Ground (ship + current). STW = Speed Through Water (engine effort).
+        Fuel capacity: 368 MT. Mission dwell included: 48h Bharati + 72h Maitri = 5 days.
       </div>
     </div>
   );

@@ -1,0 +1,167 @@
+{
+  "generated_at": "2026-09-07T19:31:20.359224+00:00",
+  "departure_time": "2024-01-01T00:00:00+00:00",
+  "description": "Pre-correction baseline run of AMIP router for all 5 canonical mission objectives before audit adjustments.",
+  "routes": {
+    "FASTEST": {
+      "route_id": "mission-route-8899c283",
+      "objective": "FASTEST",
+      "metrics": {
+        "distance_nm": 6562.9,
+        "duration_hours": 828.7,
+        "duration_days": 34.53,
+        "estimated_fuel_tonnes": 821.8,
+        "mean_risk_score": 0.238,
+        "max_risk_score": 0.483,
+        "sea_ice_exposure_percent": 12.5,
+        "iceberg_hazard_exposure": 0.1,
+        "is_feasible": true
+      },
+      "waypoints_count": 49,
+      "cells_count": 49,
+      "segments_count": 48,
+      "explanation": "Multi-target mission itinerary visiting 3 targets (['Bharati Maritime Access Node', 'Maitri Maritime Access Node (India Bay)', 'Cape Town Port Return']).",
+      "diagnostics": {
+        "mission_type": "multi_target_expedition",
+        "targets_count": 3,
+        "target_names": [
+          "Bharati Maritime Access Node",
+          "Maitri Maritime Access Node (India Bay)",
+          "Cape Town Port Return"
+        ],
+        "total_cells": 49,
+        "total_distance_nm": 6562.9,
+        "total_fuel_tonnes": 821.8,
+        "total_duration_hours": 828.7
+      }
+    },
+    "SHORTEST": {
+      "route_id": "mission-route-be8f94db",
+      "objective": "SHORTEST",
+      "metrics": {
+        "distance_nm": 6544.6,
+        "duration_hours": 1041.1,
+        "duration_days": 43.38,
+        "estimated_fuel_tonnes": 500.7,
+        "mean_risk_score": 0.237,
+        "max_risk_score": 0.483,
+        "sea_ice_exposure_percent": 12.5,
+        "iceberg_hazard_exposure": 0.1,
+        "is_feasible": true
+      },
+      "waypoints_count": 49,
+      "cells_count": 49,
+      "segments_count": 48,
+      "explanation": "Multi-target mission itinerary visiting 3 targets (['Bharati Maritime Access Node', 'Maitri Maritime Access Node (India Bay)', 'Cape Town Port Return']).",
+      "diagnostics": {
+        "mission_type": "multi_target_expedition",
+        "targets_count": 3,
+        "target_names": [
+          "Bharati Maritime Access Node",
+          "Maitri Maritime Access Node (India Bay)",
+          "Cape Town Port Return"
+        ],
+        "total_cells": 49,
+        "total_distance_nm": 6544.6,
+        "total_fuel_tonnes": 500.7,
+        "total_duration_hours": 1041.1
+      }
+    },
+    "SAFEST": {
+      "route_id": "mission-route-187579f7",
+      "objective": "SAFEST",
+      "metrics": {
+        "distance_nm": 6794.4,
+        "duration_hours": 1164.2,
+        "duration_days": 48.51,
+        "estimated_fuel_tonnes": 444.5,
+        "mean_risk_score": 0.231,
+        "max_risk_score": 0.483,
+        "sea_ice_exposure_percent": 12.5,
+        "iceberg_hazard_exposure": 0.10000000000000002,
+        "is_feasible": true
+      },
+      "waypoints_count": 49,
+      "cells_count": 49,
+      "segments_count": 48,
+      "explanation": "Multi-target mission itinerary visiting 3 targets (['Bharati Maritime Access Node', 'Maitri Maritime Access Node (India Bay)', 'Cape Town Port Return']).",
+      "diagnostics": {
+        "mission_type": "multi_target_expedition",
+        "targets_count": 3,
+        "target_names": [
+          "Bharati Maritime Access Node",
+          "Maitri Maritime Access Node (India Bay)",
+          "Cape Town Port Return"
+        ],
+        "total_cells": 49,
+        "total_distance_nm": 6794.4,
+        "total_fuel_tonnes": 444.5,
+        "total_duration_hours": 1164.2
+      }
+    },
+    "FUEL_EFFICIENT": {
+      "route_id": "mission-route-2399703c",
+      "objective": "FUEL_EFFICIENT",
+      "metrics": {
+        "distance_nm": 6960.3,
+        "duration_hours": 1475.1,
+        "duration_days": 61.46,
+        "estimated_fuel_tonnes": 351.7,
+        "mean_risk_score": 0.113,
+        "max_risk_score": 0.181,
+        "sea_ice_exposure_percent": 12.5,
+        "iceberg_hazard_exposure": 0.1,
+        "is_feasible": true
+      },
+      "waypoints_count": 797,
+      "cells_count": 797,
+      "segments_count": 796,
+      "explanation": "Multi-target mission itinerary visiting 3 targets (['Bharati Maritime Access Node', 'Maitri Maritime Access Node (India Bay)', 'Cape Town Port Return']).",
+      "diagnostics": {
+        "mission_type": "multi_target_expedition",
+        "targets_count": 3,
+        "target_names": [
+          "Bharati Maritime Access Node",
+          "Maitri Maritime Access Node (India Bay)",
+          "Cape Town Port Return"
+        ],
+        "total_cells": 797,
+        "total_distance_nm": 6960.3,
+        "total_fuel_tonnes": 351.7,
+        "total_duration_hours": 1475.1
+      }
+    },
+    "BALANCED": {
+      "route_id": "mission-route-0dd8612c",
+      "objective": "BALANCED",
+      "metrics": {
+        "distance_nm": 6935.8,
+        "duration_hours": 1152.2,
+        "duration_days": 48.01,
+        "estimated_fuel_tonnes": 473.4,
+        "mean_risk_score": 0.115,
+        "max_risk_score": 0.188,
+        "sea_ice_exposure_percent": 12.5,
+        "iceberg_hazard_exposure": 0.1,
+        "is_feasible": true
+      },
+      "waypoints_count": 797,
+      "cells_count": 797,
+      "segments_count": 796,
+      "explanation": "Multi-target mission itinerary visiting 3 targets (['Bharati Maritime Access Node', 'Maitri Maritime Access Node (India Bay)', 'Cape Town Port Return']).",
+      "diagnostics": {
+        "mission_type": "multi_target_expedition",
+        "targets_count": 3,
+        "target_names": [
+          "Bharati Maritime Access Node",
+          "Maitri Maritime Access Node (India Bay)",
+          "Cape Town Port Return"
+        ],
+        "total_cells": 797,
+        "total_distance_nm": 6935.8,
+        "total_fuel_tonnes": 473.4,
+        "total_duration_hours": 1152.2
+      }
+    }
+  }
+}

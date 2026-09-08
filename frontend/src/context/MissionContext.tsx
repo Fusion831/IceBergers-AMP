@@ -68,37 +68,47 @@ export const INITIAL_MISSION: MissionConfig = {
 };
 
 // Format canonical routes from frozen dataset
-const formattedRoutes: RouteAlternative[] = Object.values(canonicalRoutesData).map((r: any) => ({
-  id: r.id,
-  name: r.name,
-  type: r.id as any,
-  objective: r.objective || r.id.toUpperCase(),
-  tag: r.tag,
-  distanceNM: r.distanceNM,
-  transitDays: r.transitDays,
-  dwellDays: r.dwellDays || 5.0,
-  durationDays: r.durationDays,
-  durationHours: r.durationHours,
-  estimatedFuelMT: r.estimatedFuelMT,
-  meanRisk: r.meanRisk,
-  maxRisk: r.maxRisk,
-  medianRisk: r.meanRisk,
-  p95Risk: r.maxRisk,
-  seaIceExposurePct: r.meanRisk * 25.0,
-  icebergRiskIndex: Math.round(r.meanRisk * 50),
-  weatherSeverityScore: 35,
-  confidence: 'HIGH',
-  color: ROUTE_COLOR_MAP[r.id] || r.color || '#3b82f6',
-  waypoints: r.waypoints,
-  waypointsDetail: r.waypointsDetail,
-  segments: r.segments,
-  cells: r.cells,
-  explanation: r.explanation,
-  searchDiagnostics: r.searchDiagnostics,
-  bharatiArrival: r.bharatiArrival,
-  maitriArrival: r.maitriArrival,
-  capeTownReturn: r.capeTownReturn,
-}));
+const formattedRoutes: RouteAlternative[] = Object.values(canonicalRoutesData).map((r: any) => {
+  const sailingDays = r.sailingDays ?? r.transitDays ?? (r.durationDays ? r.durationDays - (r.dwellDays || 5.0) : 30.0);
+  const dwellDays = r.dwellDays ?? 5.0;
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.id as any,
+    objective: r.objective || r.id.toUpperCase(),
+    tag: r.tag,
+    distanceNM: r.distanceNM,
+    transitDays: sailingDays,   // use sailingDays as transitDays for backward compat
+    sailingDays: sailingDays,
+    dwellDays: dwellDays,
+    durationDays: r.durationDays ?? (sailingDays + dwellDays),
+    durationHours: r.durationHours,
+    estimatedFuelMT: r.estimatedFuelMT,
+    meanRisk: r.meanRisk,
+    maxRisk: r.maxRisk,
+    medianRisk: r.meanRisk,
+    p95Risk: r.maxRisk,
+    meanSOG: r.meanSOG,
+    meanSTW: r.meanSTW,
+    seaIceExposurePct: r.meanRisk * 25.0,
+    icebergRiskIndex: Math.round(r.meanRisk * 50),
+    weatherSeverityScore: 35,
+    confidence: 'HIGH',
+    color: ROUTE_COLOR_MAP[r.id] || r.color || '#3b82f6',
+    waypoints: r.waypoints,
+    waypointsDetail: r.waypointsDetail,
+    segments: r.segments,
+    cells: r.cells,
+    explanation: r.explanation,
+    searchDiagnostics: r.searchDiagnostics,
+    bharatiArrival: r.bharatiArrival,
+    maitriArrival: r.maitriArrival,
+    capeTownReturn: r.capeTownReturn,
+    isFeasible: r.isFeasible,
+    warnings: r.warnings || [],
+  };
+});
+
 
 export const INITIAL_LOCATIONS: LocationData[] = [
   {
