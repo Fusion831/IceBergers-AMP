@@ -25,7 +25,11 @@ export interface MissionConfig {
   expeditionId: string;
   startDate: string;
   endDate: string;
+  departureTime?: string;
   originPort: string;
+  originPortCoords?: [number, number]; // [lon, lat]
+  returnPort?: string;
+  returnPortCoords?: [number, number]; // [lon, lat]
   targetStations: string[];
   vessel: VesselProfile;
   priorityWeights: {

@@ -1,9 +1,10 @@
-import React from 'react';
-import { HelpCircle, CheckCircle2, Cpu } from 'lucide-react';
+import React, { useState } from 'react';
+import { HelpCircle, CheckCircle2, Cpu, ChevronDown, ChevronRight } from 'lucide-react';
 import { useMission } from '../context/MissionContext';
 
 export const ExplainabilityCard: React.FC = () => {
   const { selectedRoute } = useMission();
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   if (!selectedRoute) return null;
 
@@ -43,21 +44,41 @@ export const ExplainabilityCard: React.FC = () => {
             WHY {objectiveLabel} WON
           </h3>
         </div>
-        <span
-          style={{
-            fontSize: '9.5px',
-            fontWeight: 800,
-            padding: '2px 6px',
-            borderRadius: '0px',
-            backgroundColor: 'rgba(240, 253, 250, 0.95)',
-            color: '#0d9488',
-            border: '1px solid #5eead4',
-            fontFamily: 'var(--font-mono)'
-          }}
-        >
-          {selectedRoute.tag || 'CANONICAL'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '9.5px',
+              fontWeight: 800,
+              padding: '2px 6px',
+              borderRadius: '0px',
+              backgroundColor: 'rgba(240, 253, 250, 0.95)',
+              color: '#0d9488',
+              border: '1px solid #5eead4',
+              fontFamily: 'var(--font-mono)'
+            }}
+          >
+            {selectedRoute.tag || 'CANONICAL'}
+          </span>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? 'Collapse Explainability Card' : 'Expand Explainability Card'}
+            style={{
+              background: '#ffffff',
+              border: '1px solid #bfdbfe',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '2px 4px',
+              color: '#2563eb'
+            }}
+          >
+            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        </div>
       </div>
+
+      {isExpanded && (
+        <>
 
       {/* Primary Objective Banner */}
       <div
@@ -149,6 +170,8 @@ export const ExplainabilityCard: React.FC = () => {
           <span>Iceberg standoff: All 73 tracked bergs and 90-day predicted drift vectors evaluated.</span>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

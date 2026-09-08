@@ -94,7 +94,7 @@ function MainWorkstation() {
       <Header />
 
       {/* Main View Area */}
-      <main style={{ flex: 1, overflow: 'hidden', padding: '10px 14px', position: 'relative', zIndex: 1 }}>
+      <main style={{ flex: 1, overflow: 'hidden', padding: activeView === 'antarctic-map' ? '0' : '10px 14px', position: 'relative', zIndex: 1 }}>
         {activeView === 'mission-setup' && <MissionSetupView />}
         {activeView === 'antarctic-map' && <AntarcticMapView />}
         {activeView === 'environmental-timeline' && <EnvironmentalTimelineView />}

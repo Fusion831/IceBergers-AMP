@@ -2,15 +2,30 @@ import React, { useState } from 'react';
 import { useMission } from '../context/MissionContext';
 import { AntarcticMap } from '../components/AntarcticMap';
 import { ExplainabilityCard } from '../components/ExplainabilityCard';
+import { PathfinderExplainabilityHUD } from '../components/PathfinderExplainabilityHUD';
+import { EnvironmentalTimelineView } from './EnvironmentalTimelineView';
+import { LocationComparisonView } from './LocationComparisonView';
+import { RouteComparisonView } from './RouteComparisonView';
+import { PredictionInspectorView } from './PredictionInspectorView';
+import { MissionSetupView } from './MissionSetupView';
 import {
   Layers,
   Navigation,
   ExternalLink,
   X,
   Cpu,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Anchor
+  Anchor,
+  Eye,
+  Compass,
+  TrendingUp,
+  MapPin,
+  Crosshair,
+  Sliders,
+  Maximize2,
+  Minimize2,
+  Clock,
+  Radio,
+  Play
 } from 'lucide-react';
 
 export const AntarcticMapView: React.FC = () => {
@@ -19,19 +34,38 @@ export const AntarcticMapView: React.FC = () => {
     setTimeHorizon,
     activeMapLayer,
     setActiveMapLayer,
-    routes,
     selectedRouteId,
-    setSelectedRouteId,
     setActiveView,
     selectedH3Cell,
     setSelectedH3Cell,
     selectedSegment,
     setSelectedSegment,
     selectedIceberg,
-    setSelectedIceberg
+    setSelectedIceberg,
+    showH3Grid,
+    setShowH3Grid,
+    showTrajectories,
+    setShowTrajectories,
+    isPathfinderMode,
+    setIsPathfinderMode
   } = useMission();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  // On-map HUD views toggles
+  const [showTelemetryHeader, setShowTelemetryHeader] = useState<boolean>(true);
+  const [showRoutePanel, setShowRoutePanel] = useState<boolean>(true);
+  const [showLegend, setShowLegend] = useState<boolean>(true);
+  const [showTimelineBar, setShowTimelineBar] = useState<boolean>(true);
+  const [showLayerControls, setShowLayerControls] = useState<boolean>(true);
+  const [isZenMode, setIsZenMode] = useState<boolean>(false);
+
+  // Workstation View Overlays
+  type OverlayViewType = 'timeline' | 'routes' | 'locations' | 'prediction' | 'setup' | 'vessel' | null;
+  const [activeOverlayView, setActiveOverlayView] = useState<OverlayViewType>(null);
+  const [isOverlayMaximized, setIsOverlayMaximized] = useState<boolean>(false);
+
+  const toggleZenMode = () => {
+    setIsZenMode((prev) => !prev);
+  };
 
   // Helper to close all inspectors
   const closeAllInspectors = () => {
@@ -43,219 +77,553 @@ export const AntarcticMapView: React.FC = () => {
   const isAnyInspectorOpen = !!(selectedH3Cell || selectedSegment || selectedIceberg);
 
   return (
-    <div style={{ display: 'flex', gap: '10px', height: '100%', overflow: 'hidden', padding: '8px' }}>
+    <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
 
-      {/* Left Workstation Sidebar (Collapsible) */}
-      {isSidebarOpen && (
+      {/* Floating Buttons Directly on Map (No background container box) */}
+      <div style={{
+        position: 'absolute',
+        top: '8px',
+        left: '10px',
+        right: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+        flexWrap: 'wrap',
+        pointerEvents: 'none',
+        zIndex: 35
+      }}>
+        {/* Left: Environmental Overlays Layer Switcher */}
         <div style={{
-          width: '340px',
           display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          overflowY: 'auto',
-          flexShrink: 0
+          alignItems: 'center',
+          gap: '4px',
+          flexWrap: 'wrap',
+          pointerEvents: 'auto'
         }}>
-
-          {/* Intelligence Layer Selector */}
-          <div className="ws-panel" style={{ background: 'rgba(240, 248, 255, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(191, 219, 254, 0.85)' }}>
-            <div className="ws-panel-header" style={{ background: 'rgba(224, 242, 254, 0.85)', borderBottom: '1px solid rgba(191, 219, 254, 0.85)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={14} color="#2563eb" />
-                <span>ENVIRONMENTAL OVERLAYS</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="ws-badge ws-badge-info">
-                  {timeHorizon}
-                </span>
-                <button
-                  onClick={() => setIsSidebarOpen(false)}
-                  title="Close Sidebar"
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #bfdbfe',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '3px 5px',
-                    color: '#2563eb'
-                  }}
-                >
-                  <PanelLeftClose size={13} />
-                </button>
-              </div>
-            </div>
-
-            <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-              {[
-                { id: 'icebergs', label: 'Icebergs', desc: '73 Tracked & Drifts' },
-                { id: 'sic', label: 'Sea-Ice (SIC)', desc: 'Historical POC Scale' },
-                { id: 'risk', label: 'Composite Risk', desc: '7 Factor Breakdown' },
-                { id: 'weather', label: 'Ocean Dynamics', desc: 'Currents, Wind & Waves' }
-              ].map((layer) => {
-                const isActive = activeMapLayer === layer.id;
-                return (
-                  <button
-                    key={layer.id}
-                    onClick={() => setActiveMapLayer(layer.id as any)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: '0px',
-                      border: '1px solid',
-                      borderColor: isActive ? '#1d4ed8' : 'rgba(191, 219, 254, 0.85)',
-                      borderBottom: isActive ? '3px solid #1e3a8a' : '3px solid #93c5fd',
-                      background: isActive ? '#dbeafe' : 'rgba(255, 255, 255, 0.85)',
-                      color: isActive ? '#1e3a8a' : '#1e293b',
-                      fontSize: '11px',
-                      fontWeight: isActive ? 800 : 600,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.2)' : 'none'
-                    }}
-                  >
-                    <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700 }}>{layer.label}</div>
-                    <div style={{ fontSize: '9px', color: isActive ? '#2563eb' : '#64748b', marginTop: '2px' }}>
-                      {layer.desc}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginRight: '2px',
+            background: 'rgba(255, 255, 255, 0.94)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid #bfdbfe',
+            borderBottom: '2px solid #93c5fd',
+            padding: '4px 7px',
+            boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+          }}>
+            <Layers size={13} color="#2563eb" />
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#1e3a8a', fontFamily: 'var(--font-mono)' }}>
+              OVERLAYS
+            </span>
           </div>
 
-          {/* Candidate Routes Selector (All 5 Real Alternatives) */}
-          <div className="ws-panel" style={{ background: 'rgba(240, 248, 255, 0.85)', backdropFilter: 'blur(12px)', border: '1px solid rgba(191, 219, 254, 0.85)' }}>
-            <div className="ws-panel-header" style={{ background: 'rgba(224, 242, 254, 0.85)', borderBottom: '1px solid rgba(191, 219, 254, 0.85)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Navigation size={14} color="#2563eb" />
-                <span>5 CANONICAL ROUTE ALTERNATIVES</span>
-              </div>
+          {[
+            { id: 'icebergs', label: 'Icebergs' },
+            { id: 'sic', label: 'Sea-Ice (SIC)' },
+            { id: 'risk', label: 'Composite Risk' },
+            { id: 'weather', label: 'Ocean Dynamics' }
+          ].map((layer) => {
+            const isActive = activeMapLayer === layer.id;
+            return (
               <button
-                onClick={() => setActiveView('route-comparison')}
+                key={layer.id}
+                onClick={() => {
+                  setActiveMapLayer(layer.id as any);
+                  if (layer.id === 'icebergs') {
+                    setShowTrajectories(true);
+                  }
+                }}
                 style={{
-                  fontSize: '10px',
-                  color: '#2563eb',
-                  background: 'transparent',
-                  border: 'none',
+                  padding: '4px 9px',
+                  borderRadius: '0px',
+                  border: '1px solid',
+                  borderColor: isActive ? '#1d4ed8' : '#bfdbfe',
+                  borderBottom: isActive ? '2px solid #1e3a8a' : '2px solid #93c5fd',
+                  background: isActive ? '#2563eb' : 'rgba(255, 255, 255, 0.94)',
+                  backdropFilter: 'blur(10px)',
+                  color: isActive ? '#ffffff' : '#1e3a8a',
+                  fontSize: '10.5px',
+                  fontWeight: isActive ? 800 : 600,
+                  cursor: 'pointer',
+                  boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.25)' : '0 2px 5px rgba(15, 23, 42, 0.12)'
+                }}
+              >
+                {layer.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Center: HUD Panel Toggles */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          flexWrap: 'wrap',
+          pointerEvents: 'auto'
+        }}>
+          <button
+            onClick={() => setShowRoutePanel(!showRoutePanel)}
+            title="Toggle Route Alternatives HUD on Map"
+            style={{
+              padding: '4px 8px',
+              background: showRoutePanel && !isZenMode ? '#eff6ff' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderBottom: showRoutePanel && !isZenMode ? '2px solid #2563eb' : '2px solid #93c5fd',
+              color: showRoutePanel && !isZenMode ? '#1e3a8a' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Navigation size={12} color={showRoutePanel && !isZenMode ? '#2563eb' : '#94a3b8'} />
+            <span>ROUTES HUD</span>
+          </button>
+
+          <button
+            onClick={() => setShowTimelineBar(!showTimelineBar)}
+            title="Toggle 90-Day Timeline Bar on Map"
+            style={{
+              padding: '4px 8px',
+              background: showTimelineBar && !isZenMode ? '#eff6ff' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderBottom: showTimelineBar && !isZenMode ? '2px solid #2563eb' : '2px solid #93c5fd',
+              color: showTimelineBar && !isZenMode ? '#1e3a8a' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Clock size={12} color={showTimelineBar && !isZenMode ? '#2563eb' : '#94a3b8'} />
+            <span>TIMELINE</span>
+          </button>
+
+          <button
+            onClick={() => setShowLegend(!showLegend)}
+            title="Toggle Map Legend"
+            style={{
+              padding: '4px 8px',
+              background: showLegend && !isZenMode ? '#eff6ff' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderBottom: showLegend && !isZenMode ? '2px solid #2563eb' : '2px solid #93c5fd',
+              color: showLegend && !isZenMode ? '#1e3a8a' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Compass size={12} color={showLegend && !isZenMode ? '#2563eb' : '#94a3b8'} />
+            <span>LEGEND</span>
+          </button>
+
+          <button
+            onClick={() => setShowTelemetryHeader(!showTelemetryHeader)}
+            title="Toggle Telemetry Strip"
+            style={{
+              padding: '4px 8px',
+              background: showTelemetryHeader && !isZenMode ? '#eff6ff' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderBottom: showTelemetryHeader && !isZenMode ? '2px solid #2563eb' : '2px solid #93c5fd',
+              color: showTelemetryHeader && !isZenMode ? '#1e3a8a' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Radio size={12} color={showTelemetryHeader && !isZenMode ? '#2563eb' : '#94a3b8'} />
+            <span>TELEMETRY</span>
+          </button>
+
+          <button
+            onClick={toggleZenMode}
+            title={isZenMode ? "Exit Zen Mode (Restore Panels)" : "Zen Mode (Hide All HUD Overlays)"}
+            style={{
+              padding: '4px 10px',
+              background: isZenMode ? '#1e3a8a' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid',
+              borderColor: isZenMode ? '#172554' : '#bfdbfe',
+              borderBottom: isZenMode ? '2px solid #0f172a' : '2px solid #93c5fd',
+              color: isZenMode ? '#ffffff' : '#0f172a',
+              fontSize: '10.5px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Eye size={12} color={isZenMode ? '#38bdf8' : '#2563eb'} />
+            <span>{isZenMode ? "EXIT ZEN MODE" : "ZEN MAP"}</span>
+          </button>
+
+          {/* Direct H3 Grid Toggle */}
+          <button
+            onClick={() => setShowH3Grid(!showH3Grid)}
+            title={showH3Grid ? "Hide H3 Grid Mesh Lines" : "Show H3 Grid Mesh Lines"}
+            style={{
+              padding: '4px 8px',
+              background: showH3Grid && !isZenMode ? '#eff6ff' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderBottom: showH3Grid && !isZenMode ? '2px solid #2563eb' : '2px solid #93c5fd',
+              color: showH3Grid && !isZenMode ? '#1e3a8a' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Layers size={12} color={showH3Grid && !isZenMode ? '#2563eb' : '#94a3b8'} />
+            <span>H3 GRID: {showH3Grid ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Direct Iceberg Trajectories Toggle */}
+          <button
+            onClick={() => setShowTrajectories(!showTrajectories)}
+            title={showTrajectories ? "Hide 90-Day Iceberg Trajectories" : "Show 90-Day Iceberg Trajectories"}
+            style={{
+              padding: '4px 8px',
+              background: showTrajectories && !isZenMode ? '#fff7ed' : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #fed7aa',
+              borderBottom: showTrajectories && !isZenMode ? '2px solid #ea580c' : '2px solid #fdba74',
+              color: showTrajectories && !isZenMode ? '#c2410c' : '#64748b',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+            }}
+          >
+            <Navigation size={12} color={showTrajectories && !isZenMode ? '#ea580c' : '#94a3b8'} />
+            <span>TRAJECTORIES: {showTrajectories ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Direct Pathfinder Simulator Toggle */}
+          <button
+            onClick={() => setIsPathfinderMode(!isPathfinderMode)}
+            title={isPathfinderMode ? "Exit Grid-by-Grid Pathfinder Simulation" : "Step-by-Step Route Creation & Decision Explainability Simulator"}
+            style={{
+              padding: '4px 10px',
+              background: isPathfinderMode
+                ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                : 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: isPathfinderMode ? '1px solid #38bdf8' : '1px solid #bfdbfe',
+              borderBottom: isPathfinderMode ? '2px solid #0284c7' : '2px solid #93c5fd',
+              color: isPathfinderMode ? '#ffffff' : '#0369a1',
+              fontSize: '10.5px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: isPathfinderMode
+                ? '0 0 14px rgba(56, 189, 248, 0.6), 0 2px 5px rgba(15, 23, 42, 0.2)'
+                : '0 2px 5px rgba(15, 23, 42, 0.12)',
+              letterSpacing: '0.02em',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Play size={12} color={isPathfinderMode ? '#ffffff' : '#0284c7'} />
+            <span>GRID PATHFINDER: {isPathfinderMode ? 'ACTIVE' : 'SIMULATE'}</span>
+          </button>
+        </div>
+
+        {/* Right: Workstation View Overlays */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          flexWrap: 'wrap',
+          pointerEvents: 'auto'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            background: 'rgba(255, 255, 255, 0.94)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid #bfdbfe',
+            borderBottom: '2px solid #93c5fd',
+            padding: '4px 7px',
+            boxShadow: '0 2px 5px rgba(15, 23, 42, 0.12)'
+          }}>
+            <span style={{ fontSize: '10px', fontWeight: 800, color: '#1e3a8a', fontFamily: 'var(--font-mono)' }}>
+              VIEWS
+            </span>
+          </div>
+
+          {[
+            { id: 'timeline', label: 'Timeline', icon: <TrendingUp size={11} /> },
+            { id: 'routes', label: 'Route Compare', icon: <Navigation size={11} /> },
+            { id: 'locations', label: 'Locations', icon: <MapPin size={11} /> },
+            { id: 'prediction', label: 'ML Inspector', icon: <Crosshair size={11} /> },
+            { id: 'setup', label: 'Setup', icon: <Sliders size={11} /> },
+            { id: 'vessel', label: 'Vessel & AI', icon: <Anchor size={11} /> }
+          ].map((vw) => {
+            const isViewActive = activeOverlayView === vw.id;
+            return (
+              <button
+                key={vw.id}
+                onClick={() => setActiveOverlayView(isViewActive ? null : (vw.id as any))}
+                title={`Toggle ${vw.label} overlay`}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '0px',
+                  border: '1px solid',
+                  borderColor: isViewActive ? '#1d4ed8' : '#bfdbfe',
+                  borderBottom: isViewActive ? '2px solid #1e3a8a' : '2px solid #93c5fd',
+                  background: isViewActive ? '#2563eb' : 'rgba(255, 255, 255, 0.94)',
+                  backdropFilter: 'blur(10px)',
+                  color: isViewActive ? '#ffffff' : '#1e3a8a',
+                  fontSize: '10.5px',
+                  fontWeight: isViewActive ? 800 : 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px',
-                  fontFamily: 'var(--font-sans)',
-                  fontWeight: 700
+                  gap: '4px',
+                  boxShadow: isViewActive ? '0 2px 0 #1e3a8a, 0 3px 6px rgba(30, 58, 138, 0.25)' : '0 2px 5px rgba(15, 23, 42, 0.12)'
                 }}
               >
-                <span>COMPARE</span>
-                <ExternalLink size={10} />
+                {vw.icon}
+                <span>{vw.label}</span>
               </button>
-            </div>
-
-            <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              {routes.map((r) => {
-                const isSelected = selectedRouteId === r.id;
-                return (
-                  <div
-                    key={r.id}
-                    onClick={() => setSelectedRouteId(r.id)}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: '0px',
-                      border: '1px solid',
-                      borderColor: isSelected ? '#2563eb' : 'rgba(191, 219, 254, 0.85)',
-                      background: isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
-                      borderLeft: isSelected ? `4px solid ${r.color}` : '1px solid rgba(191, 219, 254, 0.85)',
-                      boxShadow: isSelected ? '0 2px 4px rgba(37,99,235,0.12)' : 'none'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: isSelected ? '#1e3a8a' : '#0f172a' }}>{r.name}</span>
-                      <span style={{ fontSize: '9.5px', color: r.color, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{r.tag}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
-                      <span>ETA: <strong style={{ color: '#0f172a' }}>{r.durationDays ? r.durationDays.toFixed(1) : r.transitDays.toFixed(1)}d</strong></span>
-                      <span>Dist: <strong style={{ color: '#0f172a' }}>{r.distanceNM.toFixed(0)} NM</strong></span>
-                      <span>Fuel: <strong style={{ color: '#ea580c' }}>{r.estimatedFuelMT.toFixed(0)} MT</strong></span>
-                      <span>Risk: <strong style={{ color: r.meanRisk > 0.3 ? '#dc2626' : '#0d9488' }}>{(r.meanRisk * 100).toFixed(0)}%</strong></span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Sagar Kanya Vessel Configuration Card */}
-          <div className="ws-panel" style={{ padding: '8px 10px', background: 'rgba(255, 255, 255, 0.85)', border: '1px solid #bfdbfe' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Anchor size={13} color="#1e3a8a" />
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#1e3a8a', fontFamily: 'var(--font-mono)' }}>
-                  ORV SAGAR KANYA
-                </span>
-              </div>
-              <span style={{ fontSize: '9px', background: '#eff6ff', color: '#1d4ed8', padding: '1px 5px', fontWeight: 700 }}>
-                CRUISE 9.0 KT
-              </span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#475569' }}>
-              <div>LOA: <strong style={{ color: '#0f172a' }}>100.34 m</strong></div>
-              <div>BEAM: <strong style={{ color: '#0f172a' }}>16.39 m</strong></div>
-              <div>DRAFT: <strong style={{ color: '#0f172a' }}>5.60 m</strong></div>
-              <div>MAX SIC: <strong style={{ color: '#0284c7' }}>&lt; 15% (MIZ)</strong></div>
-              <div>CRUISE FUEL: <strong style={{ color: '#0f172a' }}>8.16 MT/d</strong></div>
-              <div>BUNKER CAP: <strong style={{ color: '#0f172a' }}>368.0 MT</strong></div>
-            </div>
-          </div>
-
-          {/* Explainability Decision Support Card */}
-          <ExplainabilityCard />
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* Central Antarctic Map Workspace */}
-      <div style={{ flex: 1, position: 'relative', height: '100%', minHeight: '450px', border: '1px solid rgba(191, 219, 254, 0.75)', display: 'flex', flexDirection: 'column' }}>
-
-        {/* Toggle Sidebar Button when closed */}
-        {!isSidebarOpen && (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            style={{
-              position: 'absolute',
-              top: '9px',
-              left: '8px',
-              zIndex: 30,
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 8px',
-              background: '#2563eb',
-              border: '1px solid #1d4ed8',
-              borderBottom: '3px solid #1e3a8a',
-              color: '#ffffff',
-              fontSize: '11px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}
-          >
-            <PanelLeftOpen size={13} />
-          </button>
-        )}
-
+      {/* Full-bleed Map & Overlays Container */}
+      <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
         <AntarcticMap
           selectedHorizon={timeHorizon}
           activeLayer={activeMapLayer}
           selectedRoute={selectedRouteId}
           onHorizonChange={(hz) => setTimeHorizon(hz as any)}
+          showTelemetryHeader={!isZenMode && showTelemetryHeader}
+          showLayerToggles={!isZenMode && showLayerControls}
+          showRoutePanel={!isZenMode && showRoutePanel}
+          showLegend={!isZenMode && showLegend}
+          showTimelineBar={!isZenMode && showTimelineBar}
+          onToggleRoutePanel={() => setShowRoutePanel(!showRoutePanel)}
+          onToggleLegend={() => setShowLegend(!showLegend)}
+          onToggleTimelineBar={() => setShowTimelineBar(!showTimelineBar)}
+          onToggleTelemetryHeader={() => setShowTelemetryHeader(!showTelemetryHeader)}
+          onToggleLayerToggles={() => setShowLayerControls(!showLayerControls)}
         />
+
+        {/* Togglable Workstation View Overlay Modal / Window */}
+        {activeOverlayView && (
+          <div style={{
+            position: 'absolute',
+            top: isOverlayMaximized ? '0' : '50px',
+            left: isOverlayMaximized ? '0' : '10px',
+            right: isOverlayMaximized ? '0' : (isAnyInspectorOpen ? '396px' : '10px'),
+            bottom: isOverlayMaximized ? '0' : '10px',
+            zIndex: 45,
+          background: 'rgba(255, 255, 255, 0.97)',
+          backdropFilter: 'blur(20px)',
+          border: '2px solid #2563eb',
+          boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          transition: 'all 0.15s ease'
+        }}>
+          {/* Overlay Header */}
+          <div style={{
+            background: '#e0f2fe',
+            borderBottom: '1.5px solid #bfdbfe',
+            padding: '6px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}>
+            {/* Left Title and View Switcher Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Cpu size={15} color="#2563eb" />
+                <span style={{ color: '#172554', fontWeight: 800, fontSize: '11.5px', fontFamily: 'var(--font-mono)' }}>
+                  OVERLAY VIEW: {activeOverlayView.toUpperCase()}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '3px', background: 'rgba(255,255,255,0.7)', padding: '2px', border: '1px solid #bfdbfe' }}>
+                {[
+                  { id: 'timeline', label: 'Timeline' },
+                  { id: 'routes', label: 'Route Compare' },
+                  { id: 'locations', label: 'Locations' },
+                  { id: 'prediction', label: 'ML Inspector' },
+                  { id: 'setup', label: 'Setup' },
+                  { id: 'vessel', label: 'Vessel & AI' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveOverlayView(tab.id as any)}
+                    style={{
+                      padding: '2px 6px',
+                      border: 'none',
+                      background: activeOverlayView === tab.id ? '#2563eb' : 'transparent',
+                      color: activeOverlayView === tab.id ? '#ffffff' : '#334155',
+                      fontSize: '9.5px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: activeOverlayView === tab.id ? 800 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Full Screen / Full Page Navigate */}
+              {activeOverlayView !== 'vessel' && (
+                <button
+                  onClick={() => {
+                    const viewIdMap: Record<string, any> = {
+                      timeline: 'environmental-timeline',
+                      routes: 'route-comparison',
+                      locations: 'location-comparison',
+                      prediction: 'prediction-inspector',
+                      setup: 'mission-setup'
+                    };
+                    if (viewIdMap[activeOverlayView]) {
+                      setActiveView(viewIdMap[activeOverlayView]);
+                    }
+                  }}
+                  title="Open as Full Page View"
+                  style={{
+                    padding: '3px 8px',
+                    background: '#ffffff',
+                    border: '1px solid #bfdbfe',
+                    color: '#2563eb',
+                    fontSize: '10px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <ExternalLink size={11} />
+                  <span>FULL VIEW</span>
+                </button>
+              )}
+
+              {/* Maximize / Restore Toggle */}
+              <button
+                onClick={() => setIsOverlayMaximized(!isOverlayMaximized)}
+                title={isOverlayMaximized ? "Restore size" : "Maximize view"}
+                style={{
+                  padding: '3px 6px',
+                  background: '#ffffff',
+                  border: '1px solid #bfdbfe',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                {isOverlayMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+              </button>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setActiveOverlayView(null)}
+                title="Close Overlay View"
+                style={{
+                  padding: '3px 6px',
+                  background: '#ffffff',
+                  border: '1px solid #fca5a5',
+                  color: '#dc2626',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Overlay Content */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+            {activeOverlayView === 'timeline' && <EnvironmentalTimelineView />}
+            {activeOverlayView === 'routes' && <RouteComparisonView />}
+            {activeOverlayView === 'locations' && <LocationComparisonView />}
+            {activeOverlayView === 'prediction' && <PredictionInspectorView />}
+            {activeOverlayView === 'setup' && <MissionSetupView onClose={() => setActiveOverlayView(null)} />}
+            {activeOverlayView === 'vessel' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '700px', margin: '0 auto' }}>
+                <div className="ws-panel" style={{ padding: '12px 14px', background: 'rgba(255, 255, 255, 0.95)', border: '1px solid #bfdbfe' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Anchor size={15} color="#1e3a8a" />
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e3a8a', fontFamily: 'var(--font-mono)' }}>
+                        ORV SAGAR KANYA CONFIGURATION
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '10px', background: '#eff6ff', color: '#1d4ed8', padding: '2px 6px', fontWeight: 700 }}>
+                      CRUISE: 9.0 KT
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '10.5px', fontFamily: 'var(--font-mono)', color: '#475569' }}>
+                    <div>LENGTH OVERALL (LOA): <strong style={{ color: '#0f172a' }}>100.34 m</strong></div>
+                    <div>BEAM: <strong style={{ color: '#0f172a' }}>16.39 m</strong></div>
+                    <div>DESIGN DRAFT: <strong style={{ color: '#0f172a' }}>5.60 m</strong></div>
+                    <div>MAX OPERATIONAL SIC: <strong style={{ color: '#0284c7' }}>&lt; 15% (MIZ)</strong></div>
+                    <div>DAILY CRUISE FUEL: <strong style={{ color: '#0f172a' }}>8.16 MT/d</strong></div>
+                    <div>BUNKER CAPACITY: <strong style={{ color: '#0f172a' }}>368.0 MT</strong></div>
+                  </div>
+                </div>
+
+                <ExplainabilityCard />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
         {/* Dynamic Multi-State Inspector Drawer (Floating Right Panel) */}
         {isAnyInspectorOpen && (
           <div style={{
             position: 'absolute',
-            top: '8px',
+            top: '50px',
             right: '8px',
             bottom: '48px',
             width: '380px',
@@ -500,8 +868,10 @@ export const AntarcticMapView: React.FC = () => {
           </div>
         )}
 
-      </div>
+        {/* 4D A* Pathfinder Grid-by-Grid Simulator HUD */}
+        <PathfinderExplainabilityHUD />
 
+      </div>
     </div>
   );
 };

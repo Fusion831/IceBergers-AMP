@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   ViewMode,
   TimeHorizon,
@@ -56,8 +56,12 @@ export const INITIAL_MISSION: MissionConfig = {
   expeditionId: 'NCPOR-IASE-44',
   startDate: '2024-01-01',
   endDate: '2024-03-31',
+  departureTime: '06:00',
   originPort: 'Cape Town (Supply Gateway)',
-  targetStations: ['Bharati Maritime Access (48h dwell)', 'Maitri Maritime Access / India Bay (72h dwell)'],
+  originPortCoords: [18.4241, -33.9249],
+  returnPort: 'Cape Town (Supply Gateway)',
+  returnPortCoords: [18.4241, -33.9249],
+  targetStations: ['Bharati Station', 'Maitri Station'],
   vessel: AVAILABLE_VESSELS[0],
   priorityWeights: {
     safety: 85,
@@ -207,6 +211,18 @@ interface MissionContextType {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   togglePlay: () => void;
   
+  // Grid-by-Grid Pathfinder Simulation
+  isPathfinderMode: boolean;
+  setIsPathfinderMode: React.Dispatch<React.SetStateAction<boolean>>;
+  pathfinderStep: number;
+  setPathfinderStep: React.Dispatch<React.SetStateAction<number>>;
+  isPathfinderPlaying: boolean;
+  setIsPathfinderPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+  pathfinderSpeed: number;
+  setPathfinderSpeed: React.Dispatch<React.SetStateAction<number>>;
+  togglePathfinderPlay: () => void;
+  resetPathfinder: () => void;
+  
   // Specific Inspectors
   selectedH3Cell: any | null;
   setSelectedH3Cell: (cell: any | null) => void;
@@ -245,6 +261,12 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [showAlternativeRoutes, setShowAlternativeRoutes] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
+  // Grid-by-Grid Pathfinder Simulation State
+  const [isPathfinderMode, setIsPathfinderMode] = useState<boolean>(false);
+  const [pathfinderStep, setPathfinderStep] = useState<number>(0);
+  const [isPathfinderPlaying, setIsPathfinderPlaying] = useState<boolean>(false);
+  const [pathfinderSpeed, setPathfinderSpeed] = useState<number>(800); // 800ms per step
+
   // Inspector states
   const [selectedH3Cell, setSelectedH3Cell] = useState<any | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<any | null>(null);
@@ -269,19 +291,40 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const togglePlay = () => setIsPlaying((p) => !p);
+  // Pathfinder Step-by-Step Playback Loop
+  useEffect(() => {
+    if (!isPathfinderPlaying) return;
+    const maxStep = selectedRoute?.cells ? selectedRoute.cells.length - 1 : 48;
+    const interval = setInterval(() => {
+      setPathfinderStep((prev) => {
+        if (prev >= maxStep) {
+          setIsPathfinderPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, pathfinderSpeed);
+    return () => clearInterval(interval);
+  }, [isPathfinderPlaying, pathfinderSpeed, selectedRoute]);
 
-  const getCellEnvironment = (cellId: string, horizon?: string) => {
+  const togglePlay = () => setIsPlaying((p) => !p);
+  const togglePathfinderPlay = () => setIsPathfinderPlaying((p) => !p);
+  const resetPathfinder = () => {
+    setIsPathfinderPlaying(false);
+    setPathfinderStep(0);
+  };
+
+  const getCellEnvironment = useCallback((cellId: string, horizon?: string) => {
     const hz = horizon || timeHorizon;
     const hzMap = (environmentByHorizonData as any)[hz];
     return hzMap ? hzMap[cellId] || null : null;
-  };
+  }, [timeHorizon]);
 
-  const getCellRisk = (cellId: string, horizon?: string) => {
+  const getCellRisk = useCallback((cellId: string, horizon?: string) => {
     const hz = horizon || timeHorizon;
     const hzMap = (riskByHorizonData as any)[hz];
     return hzMap ? hzMap[cellId] || null : null;
-  };
+  }, [timeHorizon]);
 
   return (
     <MissionContext.Provider
@@ -315,6 +358,16 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isPlaying,
         setIsPlaying,
         togglePlay,
+        isPathfinderMode,
+        setIsPathfinderMode,
+        pathfinderStep,
+        setPathfinderStep,
+        isPathfinderPlaying,
+        setIsPathfinderPlaying,
+        pathfinderSpeed,
+        setPathfinderSpeed,
+        togglePathfinderPlay,
+        resetPathfinder,
         selectedH3Cell,
         setSelectedH3Cell,
         selectedSegment,

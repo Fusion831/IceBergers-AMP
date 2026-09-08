@@ -1,18 +1,21 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import {
   Compass,
-  Grid,
   Radio,
   Navigation,
   Play,
   Pause,
   Calendar,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  X
 } from 'lucide-react';
 import { useMission } from '../context/MissionContext';
 import antarcticaFullH3GridData from '../data/antarctica_full_h3_grid.json';
+import { getPathfinderStepAnalysis } from '../utils/pathfinderAnalysis';
 
 interface AntarcticMapProps {
   selectedHorizon: string;
@@ -20,6 +23,16 @@ interface AntarcticMapProps {
   selectedRoute: string;
   onHorizonChange?: (hz: string) => void;
   onInspectPoint?: (coords: [number, number]) => void;
+  showTelemetryHeader?: boolean;
+  showLayerToggles?: boolean;
+  showRoutePanel?: boolean;
+  showLegend?: boolean;
+  showTimelineBar?: boolean;
+  onToggleRoutePanel?: () => void;
+  onToggleLegend?: () => void;
+  onToggleTimelineBar?: () => void;
+  onToggleTelemetryHeader?: () => void;
+  onToggleLayerToggles?: () => void;
 }
 
 // User specified stable route colors
@@ -55,16 +68,90 @@ const DAY_TO_NEAREST_HORIZON = (day: number): string => {
 
 const roundVal = (v: any, d: number) => (typeof v === 'number' && !isNaN(v) ? +(v.toFixed(d)) : v);
 
+const getEnvironmentalFillColor = (layer: 'sic' | 'icebergs' | 'risk' | 'weather'): any => {
+  if (layer === 'sic') {
+    return [
+      'interpolate',
+      ['linear'],
+      ['to-number', ['get', 'sic'], 0],
+      0.0, 'rgba(0, 0, 0, 0)',
+      0.05, 'rgba(186, 230, 253, 0.40)',
+      0.15, 'rgba(147, 197, 253, 0.65)',
+      0.40, 'rgba(96, 165, 250, 0.82)',
+      0.70, 'rgba(224, 242, 254, 0.92)',
+      0.85, 'rgba(255, 255, 255, 0.98)'
+    ];
+  }
+  if (layer === 'risk') {
+    return [
+      'case',
+      ['==', ['get', 'hard_blocked'], true],
+      'rgba(153, 27, 27, 0.94)',
+      [
+        'interpolate',
+        ['linear'],
+        ['to-number', ['get', 'composite_risk'], 0],
+        0.0, 'rgba(16, 185, 129, 0.25)',
+        0.15, 'rgba(16, 185, 129, 0.50)',
+        0.30, 'rgba(234, 179, 8, 0.68)',
+        0.50, 'rgba(249, 115, 22, 0.85)',
+        0.70, 'rgba(239, 68, 68, 0.95)'
+      ]
+    ];
+  }
+  if (layer === 'weather') {
+    return [
+      'interpolate',
+      ['linear'],
+      ['to-number', ['get', 'wave_height'], 0],
+      0.5, 'rgba(56, 189, 248, 0.30)',
+      2.0, 'rgba(37, 99, 235, 0.60)',
+      3.5, 'rgba(124, 58, 237, 0.78)',
+      5.0, 'rgba(219, 39, 119, 0.90)',
+      7.0, 'rgba(225, 29, 72, 0.95)'
+    ];
+  }
+  // Icebergs hazard & occupancy
+  return [
+    'case',
+    ['>', ['to-number', ['get', 'iceberg_count'], 0], 0],
+    'rgba(234, 88, 12, 0.90)',
+    [
+      'interpolate',
+      ['linear'],
+      ['to-number', ['get', 'iceberg_hazard'], 0],
+      0.0, 'rgba(0, 0, 0, 0)',
+      0.05, 'rgba(254, 215, 170, 0.45)',
+      0.15, 'rgba(251, 146, 60, 0.70)',
+      0.35, 'rgba(234, 88, 12, 0.90)'
+    ]
+  ];
+};
+
 export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   selectedHorizon,
+  activeLayer = 'risk',
   selectedRoute: propSelectedRoute,
   onHorizonChange,
-  onInspectPoint
+  onInspectPoint,
+  showTelemetryHeader = true,
+  showLayerToggles = true,
+  showRoutePanel = true,
+  showLegend = true,
+  showTimelineBar = true,
+  onToggleRoutePanel,
+  onToggleLegend,
+  onToggleTimelineBar,
+  onToggleTelemetryHeader,
+  onToggleLayerToggles
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const routeLabelMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const missionNodeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const hoveredPopupRef = useRef<maplibregl.Popup | null>(null);
+  const isMapLoaded = useRef<boolean>(false);
+  const pendingActions = useRef<((m: maplibregl.Map) => void)[]>([]);
 
   const {
     routes,
@@ -77,16 +164,22 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     getCellRisk,
     icebergsList,
     showTrajectories,
-    setShowTrajectories,
     showH3Grid,
-    setShowH3Grid,
     selectedH3Cell,
     setSelectedH3Cell,
     selectedSegment,
     setSelectedSegment,
     selectedIceberg,
-    setSelectedIceberg
+    setSelectedIceberg,
+    isPathfinderMode,
+    pathfinderStep,
+    missionConfig
   } = useMission();
+
+  // On-map sub-view minimize states
+  const [isRoutePanelMinimized, setIsRoutePanelMinimized] = useState<boolean>(false);
+  const [isLegendMinimized, setIsLegendMinimized] = useState<boolean>(false);
+  const [isTimelineMinimized, setIsTimelineMinimized] = useState<boolean>(false);
 
   // Timeline slider state: T+0 to T+90 days
   const [sliderDay, setSliderDay] = useState<number>(0);
@@ -104,6 +197,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   });
 
   const activeRouteId = propSelectedRoute || selectedRouteId || 'fastest';
+  const currentLayer = activeLayer || 'risk';
   const currentHz = DAY_TO_NEAREST_HORIZON(sliderDay);
 
   const toggleRouteVisibility = (routeId: string, ev?: React.MouseEvent) => {
@@ -112,6 +206,19 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       ...prev,
       [routeId]: !prev[routeId]
     }));
+  };
+
+  const handleSelectRoute = (routeId: string) => {
+    setSelectedRouteId(routeId);
+    const targetRoute = routes.find((r) => r.id === routeId);
+    if (targetRoute && targetRoute.waypoints && targetRoute.waypoints.length > 0 && map.current) {
+      const pts = targetRoute.waypoints;
+      const mid = pts[Math.floor(pts.length / 2)];
+      map.current.easeTo({
+        center: [mid[0], mid[1]],
+        duration: 800
+      });
+    }
   };
 
   // Sync external selectedHorizon changes into slider
@@ -220,7 +327,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       type: 'FeatureCollection',
       features
     } as GeoJSON.FeatureCollection;
-  }, [corridorGeojson, currentHz, getCellEnvironment, getCellRisk]);
+  }, [corridorGeojson, currentHz]);
 
   // 2. Iceberg Current Positions at Current Slider Day (0 to 90 Days, 361 discrete steps)
   const currentIcebergsGeoJSON = useMemo(() => {
@@ -478,6 +585,104 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
   }, [routes, activeRouteId, selectedSegment]);
 
   // -------------------------------------------------------------
+  // Pathfinder GeoJSON Memoized Pipelines
+  // -------------------------------------------------------------
+  const pathfinderAnalysis = useMemo(() => {
+    if (!selectedRoute) return null;
+    return getPathfinderStepAnalysis(selectedRoute, pathfinderStep);
+  }, [selectedRoute, pathfinderStep]);
+
+  const pathfinderProgressGeoJSON = useMemo(() => {
+    if (!selectedRoute || !selectedRoute.waypoints) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+    const sliced = selectedRoute.waypoints.slice(0, pathfinderStep + 1);
+    if (sliced.length < 2) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 'pathfinder-progress',
+          properties: { id: 'pathfinder-progress' },
+          geometry: {
+            type: 'LineString',
+            coordinates: sliced
+          }
+        }
+      ]
+    } as GeoJSON.FeatureCollection;
+  }, [selectedRoute, pathfinderStep]);
+
+  const pathfinderFrontierGeoJSON = useMemo(() => {
+    if (!pathfinderAnalysis || !pathfinderAnalysis.chosenCellPolygon) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: pathfinderAnalysis.cellId,
+          properties: {
+            id: pathfinderAnalysis.cellId,
+            driver: pathfinderAnalysis.primaryDriver,
+            sic: pathfinderAnalysis.sicPercent
+          },
+          geometry: pathfinderAnalysis.chosenCellPolygon
+        }
+      ]
+    } as GeoJSON.FeatureCollection;
+  }, [pathfinderAnalysis]);
+
+  const pathfinderCandidatesGeoJSON = useMemo(() => {
+    if (!pathfinderAnalysis) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+    const features = pathfinderAnalysis.candidateAlternatives
+      .filter((c) => c.status === 'rejected' && c.geometry)
+      .map((c) => ({
+        type: 'Feature',
+        id: c.cellId,
+        properties: {
+          id: c.cellId,
+          name: c.name,
+          rejectionReason: c.rejectionReason,
+          costDeltaPct: c.costDeltaPct,
+          status: 'rejected'
+        },
+        geometry: c.geometry
+      }));
+    return {
+      type: 'FeatureCollection',
+      features
+    } as GeoJSON.FeatureCollection;
+  }, [pathfinderAnalysis]);
+
+  const pathfinderVesselGeoJSON = useMemo(() => {
+    if (!selectedRoute?.waypoints?.[pathfinderStep]) {
+      return { type: 'FeatureCollection', features: [] } as GeoJSON.FeatureCollection;
+    }
+    const pt = selectedRoute.waypoints[pathfinderStep];
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 'pathfinder-vessel-pt',
+          properties: { id: 'pathfinder-vessel-pt' },
+          geometry: {
+            type: 'Point',
+            coordinates: [pt[0], pt[1]]
+          }
+        }
+      ]
+    } as GeoJSON.FeatureCollection;
+  }, [selectedRoute, pathfinderStep]);
+
+  // -------------------------------------------------------------
   // Map Initialization: Natural, Vibrant Basemap & Authentic H3 Grid
   // -------------------------------------------------------------
   useEffect(() => {
@@ -566,6 +771,27 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         data: authenticH3GeoJSON
       });
 
+      // 2a. Dynamic Environmental Choropleth Fill Layer (SIC, Risk, Weather Waves, Iceberg Hazard)
+      mapInstance.addLayer({
+        id: 'canonical-h3-environmental-fill',
+        type: 'fill',
+        source: 'canonical-h3-source',
+        layout: {
+          visibility: showH3Grid ? 'visible' : 'none'
+        },
+        paint: {
+          'fill-color': getEnvironmentalFillColor(activeLayer),
+          'fill-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            2, 0.70,
+            4, 0.80,
+            6, 0.88
+          ]
+        }
+      });
+
       // Subtle, elegant hexagonal mesh lines across the entire circum-Antarctic domain and corridor
       mapInstance.addLayer({
         id: 'canonical-h3-lines',
@@ -611,6 +837,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         id: 'canonical-h3-hit',
         type: 'fill',
         source: 'canonical-h3-source',
+        layout: {
+          visibility: showH3Grid ? 'visible' : 'none'
+        },
         paint: {
           'fill-color': 'rgba(0, 0, 0, 0.0)'
         }
@@ -647,15 +876,16 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           'line-color': [
             'case',
             ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            'rgba(249, 115, 22, 0.90)',
-            'rgba(249, 115, 22, 0.25)'
+            '#ffffff',
+            'rgba(249, 115, 22, 0.85)'
           ],
           'line-width': [
             'case',
             ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            2.5,
-            1.0
-          ]
+            3.5,
+            2.0
+          ],
+          'line-dasharray': [3, 2]
         }
       });
 
@@ -815,67 +1045,8 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         filter: ['==', ['get', 'id'], selectedIceberg?.id || '']
       });
 
-      // 9. MISSION NODES
-      const missionNodes = [
-        {
-          id: 'cape-town',
-          name: 'Cape Town Staging Port',
-          role: 'ORIGIN / GATEWAY',
-          coords: [18.4241, -33.9249] as [number, number],
-          iconColor: '#3b82f6',
-          symbol: '⚓'
-        },
-        {
-          id: 'bharati',
-          name: 'Bharati Maritime Access (Prydz Bay)',
-          role: 'WAYPOINT 1 (48h Dwell)',
-          coords: [76.19, -69.41] as [number, number],
-          iconColor: '#14b8a6',
-          symbol: '◆'
-        },
-        {
-          id: 'maitri',
-          name: 'Maitri Maritime Access (India Bay)',
-          role: 'WAYPOINT 2 (72h Dwell)',
-          coords: [11.73, -69.95] as [number, number],
-          iconColor: '#22c55e',
-          symbol: '◆'
-        }
-      ];
+      // 9. MISSION NODES (Managed dynamically by missionConfig sync effect)
 
-      missionNodes.forEach((node) => {
-        const el = document.createElement('div');
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.gap = '5px';
-        el.style.padding = '3px 7px';
-        el.style.background = 'rgba(15, 23, 42, 0.94)';
-        el.style.border = `1.5px solid ${node.iconColor}`;
-        el.style.borderBottom = `3px solid ${node.iconColor}`;
-        el.style.borderRadius = '3px';
-        el.style.color = '#f8fafc';
-        el.style.fontFamily = 'var(--font-mono, monospace)';
-        el.style.fontSize = '10px';
-        el.style.fontWeight = '800';
-        el.style.cursor = 'pointer';
-        el.style.boxShadow = `0 2px 8px rgba(0,0,0,0.6), 0 0 6px ${node.iconColor}55`;
-        el.innerHTML = `<span style="color:${node.iconColor};font-size:11px;">${node.symbol}</span><span>${node.name.split(' (')[0]}</span>`;
-
-        new maplibregl.Marker({ element: el })
-          .setLngLat(node.coords)
-          .setPopup(
-            new maplibregl.Popup({ offset: 15 }).setHTML(`
-              <div style="color: #0f172a; background: #ffffff; padding: 6px 10px; font-family: monospace; min-width: 200px;">
-                <div style="font-size: 9px; color: ${node.iconColor}; font-weight: 800;">${node.role}</div>
-                <strong style="font-size: 11px; color: #1e3a8a;">${node.name}</strong>
-                <div style="margin-top: 5px; font-size: 9px; background: #eff6ff; padding: 3px 6px; border: 1px solid #bfdbfe;">
-                  COORDS: ${Math.abs(node.coords[1]).toFixed(2)}°S, ${node.coords[0].toFixed(2)}°E
-                </div>
-              </div>
-            `)
-          )
-          .addTo(mapInstance);
-      });
 
       // 10. Spatially Separated Route Markers on Map
       routeLabelMarkersRef.current.forEach((m) => m.remove());
@@ -904,6 +1075,150 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           .setLngLat(r.coords)
           .addTo(mapInstance);
         routeLabelMarkersRef.current.push(marker);
+      });
+
+      // =========================================================
+      // 10. PATHFINDER GRID-BY-GRID SIMULATION LAYERS
+      // =========================================================
+
+      // A. Candidate Rejected Alternative Cells
+      mapInstance.addSource('pathfinder-candidates-source', {
+        type: 'geojson',
+        data: pathfinderCandidatesGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-candidates-fill',
+        type: 'fill',
+        source: 'pathfinder-candidates-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'fill-color': 'rgba(239, 68, 68, 0.32)',
+          'fill-outline-color': '#f87171'
+        }
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-candidates-line',
+        type: 'line',
+        source: 'pathfinder-candidates-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': '#f87171',
+          'line-width': 2.0,
+          'line-dasharray': [2, 2]
+        }
+      });
+
+      // B. Chosen Frontier Cell (Pulsing Emerald / Cyan)
+      mapInstance.addSource('pathfinder-frontier-source', {
+        type: 'geojson',
+        data: pathfinderFrontierGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-frontier-fill',
+        type: 'fill',
+        source: 'pathfinder-frontier-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'fill-color': 'rgba(16, 185, 129, 0.65)',
+          'fill-outline-color': '#34d399'
+        }
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-frontier-line',
+        type: 'line',
+        source: 'pathfinder-frontier-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': '#34d399',
+          'line-width': 3.5
+        }
+      });
+
+      // C. Step-by-Step Route Construction Progress Line
+      mapInstance.addSource('pathfinder-progress-source', {
+        type: 'geojson',
+        data: pathfinderProgressGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-progress-glow',
+        type: 'line',
+        source: 'pathfinder-progress-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none',
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#00f0ff',
+          'line-width': 9.0,
+          'line-opacity': 0.75,
+          'line-blur': 3.0
+        }
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-progress-line',
+        type: 'line',
+        source: 'pathfinder-progress-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none',
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3.8,
+          'line-opacity': 1.0
+        }
+      });
+
+      // D. Active Pathfinder Vessel Marker at Frontier
+      mapInstance.addSource('pathfinder-vessel-source', {
+        type: 'geojson',
+        data: pathfinderVesselGeoJSON
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-vessel-halo',
+        type: 'circle',
+        source: 'pathfinder-vessel-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'circle-radius': 16,
+          'circle-color': '#00f0ff',
+          'circle-opacity': 0.55,
+          'circle-blur': 0.6
+        }
+      });
+
+      mapInstance.addLayer({
+        id: 'pathfinder-vessel-point',
+        type: 'circle',
+        source: 'pathfinder-vessel-source',
+        layout: {
+          visibility: isPathfinderMode ? 'visible' : 'none'
+        },
+        paint: {
+          'circle-radius': 7.5,
+          'circle-color': '#ffffff',
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#0284c7'
+        }
       });
 
       // ---------------------------------------------------------
@@ -1057,128 +1372,256 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           mapInstance.getCanvas().style.cursor = '';
         });
       });
+
+      // Mark map as ready and flush pending actions
+      isMapLoaded.current = true;
+      while (pendingActions.current.length > 0) {
+        const act = pendingActions.current.shift();
+        if (act) {
+          try { act(mapInstance); } catch (e) { console.warn('Deferred action failed:', e); }
+        }
+      }
     });
 
     return () => {
+      isMapLoaded.current = false;
       mapInstance.remove();
       map.current = null;
     };
   }, [basemapStyle]);
 
   // -------------------------------------------------------------
-  // Dynamic Source Updates
+  // Resilient Map Action Executor (Runs immediately if ready, defers to queue otherwise)
+  // -------------------------------------------------------------
+  const safeMapAction = useCallback((action: (m: maplibregl.Map) => void) => {
+    const m = map.current;
+    if (!m) return;
+    if (isMapLoaded.current && (m.loaded() || m.isStyleLoaded())) {
+      try {
+        action(m);
+      } catch (err) {
+        m.once('idle', () => {
+          try { action(m); } catch (e) { console.warn('Deferred idle action error:', e); }
+        });
+      }
+    } else {
+      pendingActions.current.push(action);
+    }
+  }, []);
+
+  // -------------------------------------------------------------
+  // Dynamic Source & Layer Updates
   // -------------------------------------------------------------
 
   // Update Canonical H3 Source when Horizon / Time Changes
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('canonical-h3-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(authenticH3GeoJSON);
-  }, [authenticH3GeoJSON]);
+    safeMapAction((m) => {
+      const source = m.getSource('canonical-h3-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(authenticH3GeoJSON);
+    });
+  }, [authenticH3GeoJSON, safeMapAction]);
+
+  // Update Environmental Fill Layer whenever currentLayer changes
+  useEffect(() => {
+    safeMapAction((m) => {
+      if (m.getLayer('canonical-h3-environmental-fill')) {
+        m.setPaintProperty(
+          'canonical-h3-environmental-fill',
+          'fill-color',
+          getEnvironmentalFillColor(currentLayer)
+        );
+        m.setLayoutProperty('canonical-h3-environmental-fill', 'visibility', 'visible');
+      }
+    });
+  }, [currentLayer, safeMapAction]);
+
+  // Update H3 Grid wireframe visibility whenever showH3Grid changes
+  useEffect(() => {
+    safeMapAction((m) => {
+      const visibility = showH3Grid ? 'visible' : 'none';
+      if (m.getLayer('canonical-h3-lines')) {
+        m.setLayoutProperty('canonical-h3-lines', 'visibility', visibility);
+      }
+      if (m.getLayer('canonical-h3-hit')) {
+        m.setLayoutProperty('canonical-h3-hit', 'visibility', visibility);
+      }
+    });
+  }, [showH3Grid, safeMapAction]);
+
+  // Update Iceberg Trajectories line visibility whenever showTrajectories changes
+  useEffect(() => {
+    safeMapAction((m) => {
+      const visibility = showTrajectories ? 'visible' : 'none';
+      if (m.getLayer('iceberg-trajectories-line')) {
+        m.setLayoutProperty('iceberg-trajectories-line', 'visibility', visibility);
+      }
+    });
+  }, [showTrajectories, safeMapAction]);
 
   // Update Canonical Routes Source on route changes or visibility toggles
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('canonical-routes-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(canonicalRoutesGeoJSON);
+    safeMapAction((m) => {
+      const source = m.getSource('canonical-routes-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(canonicalRoutesGeoJSON);
+    });
   }, [canonicalRoutesGeoJSON]);
 
   // Update Iceberg Positions Source on Slider Day
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('icebergs-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(currentIcebergsGeoJSON);
+    safeMapAction((m) => {
+      const source = m.getSource('icebergs-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(currentIcebergsGeoJSON);
+    });
   }, [currentIcebergsGeoJSON]);
 
   // Update Iceberg Trajectories Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('iceberg-trajectories-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(icebergTrajectoriesGeoJSON);
+    safeMapAction((m) => {
+      const source = m.getSource('iceberg-trajectories-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(icebergTrajectoriesGeoJSON);
+    });
   }, [icebergTrajectoriesGeoJSON]);
 
   // Update Vessel Position Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('vessel-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(vesselGeoJSON);
+    safeMapAction((m) => {
+      const source = m.getSource('vessel-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(vesselGeoJSON);
+    });
   }, [vesselGeoJSON]);
 
   // Update Route Segment Inspection Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('route-segments-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(selectedRouteSegmentsGeoJSON);
+    safeMapAction((m) => {
+      const source = m.getSource('route-segments-source') as maplibregl.GeoJSONSource;
+      if (source) source.setData(selectedRouteSegmentsGeoJSON);
+    });
   }, [selectedRouteSegmentsGeoJSON]);
 
   // Update Route Filters
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-
-    if (map.current.getLayer('routes-selected-line')) {
-      map.current.setFilter('routes-selected-line', [
-        'all',
-        ['==', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
-    }
-    if (map.current.getLayer('routes-selected-glow')) {
-      map.current.setFilter('routes-selected-glow', [
-        'all',
-        ['==', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
-    }
-    if (map.current.getLayer('routes-unselected-line')) {
-      map.current.setFilter('routes-unselected-line', [
-        'all',
-        ['!=', ['get', 'id'], activeRouteId],
-        ['==', ['get', 'isVisible'], true]
-      ]);
-    }
+    safeMapAction((m) => {
+      if (m.getLayer('routes-selected-line')) {
+        m.setFilter('routes-selected-line', [
+          'all',
+          ['==', ['get', 'id'], activeRouteId],
+          ['==', ['get', 'isVisible'], true]
+        ]);
+      }
+      if (m.getLayer('routes-selected-glow')) {
+        m.setFilter('routes-selected-glow', [
+          'all',
+          ['==', ['get', 'id'], activeRouteId],
+          ['==', ['get', 'isVisible'], true]
+        ]);
+      }
+      if (m.getLayer('routes-unselected-line')) {
+        m.setFilter('routes-unselected-line', [
+          'all',
+          ['!=', ['get', 'id'], activeRouteId],
+          ['==', ['get', 'isVisible'], true]
+        ]);
+      }
+    });
   }, [activeRouteId, enabledRoutes]);
-
-  // Toggle H3 Full Grid Visibility
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('canonical-h3-lines')) {
-      map.current.setLayoutProperty('canonical-h3-lines', 'visibility', showH3Grid ? 'visible' : 'none');
-    }
-  }, [showH3Grid]);
-
-  // Toggle Iceberg Trajectories Visibility
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    if (map.current.getLayer('iceberg-trajectories-line')) {
-      map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', showTrajectories ? 'visible' : 'none');
-    }
-  }, [showTrajectories]);
 
   // Update Selected Iceberg Filter
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const selId = selectedIceberg?.id || '';
-    if (map.current.getLayer('icebergs-selected-halo')) {
-      map.current.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
-    }
-    if (map.current.getLayer('icebergs-point')) {
-      map.current.setPaintProperty('icebergs-point', 'circle-radius', [
-        'case',
-        ['==', ['get', 'id'], selId],
-        8.0,
-        4.0
-      ] as any);
-    }
+    safeMapAction((m) => {
+      const selId = selectedIceberg?.id || '';
+      if (m.getLayer('icebergs-selected-halo')) {
+        m.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
+      }
+      if (m.getLayer('icebergs-point')) {
+        m.setPaintProperty('icebergs-point', 'circle-radius', [
+          'case',
+          ['==', ['get', 'id'], selId],
+          8.0,
+          4.0
+        ] as any);
+      }
+    });
   }, [selectedIceberg]);
 
   // Update Selected Cell Filter
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const selId = selectedH3Cell?.id || '';
-    if (map.current.getLayer('canonical-h3-selected-line')) {
-      map.current.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], selId]);
-    }
+    safeMapAction((m) => {
+      const selId = selectedH3Cell?.id || '';
+      if (m.getLayer('canonical-h3-selected-line')) {
+        m.setFilter('canonical-h3-selected-line', ['==', ['get', 'id'], selId]);
+      }
+    });
   }, [selectedH3Cell]);
+
+  // Update Pathfinder Sources (Progress line, frontier cell, candidate alternatives, vessel point)
+  useEffect(() => {
+    safeMapAction((m) => {
+      const pSource = m.getSource('pathfinder-progress-source') as maplibregl.GeoJSONSource;
+      if (pSource) pSource.setData(pathfinderProgressGeoJSON);
+
+      const fSource = m.getSource('pathfinder-frontier-source') as maplibregl.GeoJSONSource;
+      if (fSource) fSource.setData(pathfinderFrontierGeoJSON);
+
+      const cSource = m.getSource('pathfinder-candidates-source') as maplibregl.GeoJSONSource;
+      if (cSource) cSource.setData(pathfinderCandidatesGeoJSON);
+
+      const vSource = m.getSource('pathfinder-vessel-source') as maplibregl.GeoJSONSource;
+      if (vSource) vSource.setData(pathfinderVesselGeoJSON);
+    });
+  }, [
+    pathfinderProgressGeoJSON,
+    pathfinderFrontierGeoJSON,
+    pathfinderCandidatesGeoJSON,
+    pathfinderVesselGeoJSON,
+    safeMapAction
+  ]);
+
+  // Synchronize Pathfinder Layer Visibility and Dim Background Routes
+  useEffect(() => {
+    safeMapAction((m) => {
+      const pVisibility = isPathfinderMode ? 'visible' : 'none';
+      [
+        'pathfinder-progress-glow',
+        'pathfinder-progress-line',
+        'pathfinder-candidates-fill',
+        'pathfinder-candidates-line',
+        'pathfinder-frontier-fill',
+        'pathfinder-frontier-line',
+        'pathfinder-vessel-halo',
+        'pathfinder-vessel-point'
+      ].forEach((layerId) => {
+        if (m.getLayer(layerId)) {
+          m.setLayoutProperty(layerId, 'visibility', pVisibility);
+        }
+      });
+
+      // Dim static route lines during pathfinder mode so the dynamic step-by-step frontier stands out
+      if (m.getLayer('routes-selected-line')) {
+        m.setPaintProperty('routes-selected-line', 'line-opacity', isPathfinderMode ? 0.22 : 1.0);
+      }
+      if (m.getLayer('routes-selected-glow')) {
+        m.setPaintProperty('routes-selected-glow', 'line-opacity', isPathfinderMode ? 0.0 : 0.75);
+      }
+      if (m.getLayer('routes-unselected-line')) {
+        m.setPaintProperty('routes-unselected-line', 'line-opacity', isPathfinderMode ? 0.18 : 0.70);
+      }
+    });
+  }, [isPathfinderMode, safeMapAction]);
+
+  // Smooth Camera Centering on Active Pathfinder Frontier Cell
+  useEffect(() => {
+    if (!isPathfinderMode || !map.current) return;
+    const targetRoute = routes.find((r) => r.id === activeRouteId) || routes[0];
+    if (targetRoute?.waypoints?.[pathfinderStep]) {
+      const [lon, lat] = targetRoute.waypoints[pathfinderStep];
+      safeMapAction((m) => {
+        m.easeTo({
+          center: [lon, lat],
+          duration: 500
+        });
+      });
+    }
+  }, [isPathfinderMode, pathfinderStep, activeRouteId, routes, safeMapAction]);
 
   // Synchronize Route Identity Markers
   useEffect(() => {
@@ -1212,6 +1655,93 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     });
   }, [routeLabelPoints, setSelectedRouteId]);
 
+  // Synchronize Mission Nodes (Custom Gateway Origin Port, Destinations & Return Port)
+  useEffect(() => {
+    safeMapAction((m) => {
+      missionNodeMarkersRef.current.forEach((mk) => mk.remove());
+      missionNodeMarkersRef.current = [];
+
+      const originName = missionConfig.originPort || 'Cape Town Staging Port';
+      const originCoords = (missionConfig.originPortCoords || [18.4241, -33.9249]) as [number, number];
+      const returnName = missionConfig.returnPort || originName;
+      const returnCoords = (missionConfig.returnPortCoords || originCoords) as [number, number];
+
+      const nodes: any[] = [
+        {
+          id: 'origin-port',
+          name: originName,
+          role: 'ORIGIN / GATEWAY',
+          coords: originCoords,
+          iconColor: '#3b82f6',
+          symbol: '⚓'
+        },
+        {
+          id: 'bharati',
+          name: 'Bharati Maritime Access (Prydz Bay)',
+          role: 'WAYPOINT 1 (48h Dwell)',
+          coords: [76.19, -69.41],
+          iconColor: '#14b8a6',
+          symbol: '◆'
+        },
+        {
+          id: 'maitri',
+          name: 'Maitri Maritime Access (India Bay)',
+          role: 'WAYPOINT 2 (72h Dwell)',
+          coords: [11.73, -69.95],
+          iconColor: '#22c55e',
+          symbol: '◆'
+        }
+      ];
+
+      // Add Return Port if different from Origin
+      if (returnName !== originName && (returnCoords[0] !== originCoords[0] || returnCoords[1] !== originCoords[1])) {
+        nodes.push({
+          id: 'return-port',
+          name: returnName,
+          role: 'RETURN DESTINATION',
+          coords: returnCoords,
+          iconColor: '#a855f7',
+          symbol: '⚓'
+        });
+      }
+
+      nodes.forEach((node) => {
+        const el = document.createElement('div');
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.gap = '5px';
+        el.style.padding = '3px 7px';
+        el.style.background = 'rgba(15, 23, 42, 0.94)';
+        el.style.border = `1.5px solid ${node.iconColor}`;
+        el.style.borderBottom = `3px solid ${node.iconColor}`;
+        el.style.borderRadius = '3px';
+        el.style.color = '#f8fafc';
+        el.style.fontFamily = 'var(--font-mono, monospace)';
+        el.style.fontSize = '10px';
+        el.style.fontWeight = '800';
+        el.style.cursor = 'pointer';
+        el.style.boxShadow = `0 2px 8px rgba(0,0,0,0.6), 0 0 6px ${node.iconColor}55`;
+        el.innerHTML = `<span style="color:${node.iconColor};font-size:11px;">${node.symbol}</span><span>${node.name.split(' (')[0]}</span>`;
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat(node.coords)
+          .setPopup(
+            new maplibregl.Popup({ offset: 15 }).setHTML(`
+              <div style="color: #0f172a; background: #ffffff; padding: 6px 10px; font-family: monospace; min-width: 200px;">
+                <div style="font-size: 9px; color: ${node.iconColor}; font-weight: 800;">${node.role}</div>
+                <strong style="font-size: 11px; color: #1e3a8a;">${node.name}</strong>
+                <div style="margin-top: 5px; font-size: 9px; background: #eff6ff; padding: 3px 6px; border: 1px solid #bfdbfe;">
+                  COORDS: ${Math.abs(node.coords[1]).toFixed(2)}°${node.coords[1] >= 0 ? 'N' : 'S'}, ${Math.abs(node.coords[0]).toFixed(2)}°${node.coords[0] >= 0 ? 'E' : 'W'}
+                </div>
+              </div>
+            `)
+          )
+          .addTo(m);
+        missionNodeMarkersRef.current.push(marker);
+      });
+    });
+  }, [missionConfig, safeMapAction]);
+
   const quickJumpDays = [
     { label: 'Now', day: 0 },
     { label: '+1d', day: 1 },
@@ -1231,141 +1761,141 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 
         {/* Top-Left Telemetry HUD */}
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          left: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '5px',
-          pointerEvents: 'none',
-          zIndex: 20
-        }}>
+        {showTelemetryHeader && (
           <div style={{
+            position: 'absolute',
+            top: '48px',
+            left: '10px',
             display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(15, 23, 42, 0.90)',
-            backdropFilter: 'blur(8px)',
-            padding: '5px 10px',
-            border: '1px solid #334155',
-            pointerEvents: 'auto'
+            flexDirection: 'column',
+            gap: '5px',
+            pointerEvents: 'none',
+            zIndex: 20
           }}>
-            <Compass size={13} color="#38bdf8" />
-            <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
-              NCPOR AMIP // CANONICAL H3 EXPEDITION MESH
-            </span>
-            <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', border: '1px solid #0284c7', fontWeight: 700 }}>
-              {authenticH3GeoJSON.features.length.toLocaleString()} H3 CELLS // CIRCUM-ANTARCTIC & CORRIDOR (GEBCO + CMEMS)
-            </span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(15, 23, 42, 0.90)',
-            backdropFilter: 'blur(8px)',
-            padding: '4px 8px',
-            border: '1px solid #334155',
-            pointerEvents: 'auto'
-          }}>
-            <Radio size={11} color="#22c55e" />
-            <span style={{ fontSize: '10px', color: '#cbd5e1', fontFamily: 'var(--font-mono)' }}>
-              TIME: <strong style={{ color: '#38bdf8' }}>T+{sliderDay}d ({currentHz})</strong> | ACTIVE: <strong style={{ color: STABLE_ROUTE_COLORS[activeRouteId] }}>{(selectedRoute?.objective || activeRouteId).toUpperCase()}</strong> | TRACKED BERGS: <strong style={{ color: '#f97316' }}>{icebergsList.length}</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Top-Right Layer & Basemap Toggles */}
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          right: '50px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          pointerEvents: 'auto',
-          zIndex: 20
-        }}>
-          {/* Toggle Trajectories */}
-          <button
-            onClick={() => setShowTrajectories(!showTrajectories)}
-            style={{
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              background: showTrajectories ? 'rgba(249, 115, 22, 0.25)' : 'rgba(15, 23, 42, 0.85)',
-              border: `1px solid ${showTrajectories ? '#f97316' : '#334155'}`,
-              color: showTrajectories ? '#f97316' : '#94a3b8',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <Navigation size={11} />
-            <span>TRAJECTORIES ({showTrajectories ? 'ON' : 'OFF'})</span>
-          </button>
+              gap: '8px',
+              background: 'rgba(15, 23, 42, 0.90)',
+              backdropFilter: 'blur(8px)',
+              padding: '5px 10px',
+              border: '1px solid #334155',
+              pointerEvents: 'auto'
+            }}>
+              <Compass size={13} color="#38bdf8" />
+              <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+                NCPOR AMIP // CANONICAL H3 EXPEDITION MESH
+              </span>
+              <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', border: '1px solid #0284c7', fontWeight: 700 }}>
+                {authenticH3GeoJSON.features.length.toLocaleString()} H3 CELLS // CIRCUM-ANTARCTIC & CORRIDOR (GEBCO + CMEMS)
+              </span>
+            </div>
 
-          {/* Toggle H3 Grid Lines */}
-          <button
-            onClick={() => setShowH3Grid(!showH3Grid)}
-            style={{
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              background: showH3Grid ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.85)',
-              border: `1px solid ${showH3Grid ? '#38bdf8' : '#334155'}`,
-              color: showH3Grid ? '#38bdf8' : '#94a3b8',
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <Grid size={11} />
-            <span>H3 GRID ({showH3Grid ? 'ON' : 'OFF'})</span>
-          </button>
-
-          {/* Basemap Switcher */}
-          <div style={{ display: 'flex', gap: '2px', background: '#0f172a', padding: '2px', border: '1px solid #334155' }}>
-            {[
-              { id: 'google-earth', label: 'Sat' },
-              { id: 'google-terrain', label: 'Terr' },
-              { id: 'osm', label: 'OSM' }
-            ].map((item) => {
-              const isActive = basemapStyle === item.id;
-              return (
+              justifyContent: 'space-between',
+              gap: '8px',
+              background: 'rgba(15, 23, 42, 0.90)',
+              backdropFilter: 'blur(8px)',
+              padding: '4px 8px',
+              border: '1px solid #334155',
+              pointerEvents: 'auto'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Radio size={11} color="#22c55e" />
+                <span style={{ fontSize: '10px', color: '#cbd5e1', fontFamily: 'var(--font-mono)' }}>
+                  TIME: <strong style={{ color: '#38bdf8' }}>T+{sliderDay}d ({currentHz})</strong> | ACTIVE: <strong style={{ color: STABLE_ROUTE_COLORS[activeRouteId] }}>{(selectedRoute?.objective || activeRouteId).toUpperCase()}</strong> | TRACKED BERGS: <strong style={{ color: '#f97316' }}>{icebergsList.length}</strong>
+                </span>
+              </div>
+              {onToggleTelemetryHeader && (
                 <button
-                  key={item.id}
-                  onClick={() => setBasemapStyle(item.id as any)}
+                  onClick={onToggleTelemetryHeader}
+                  title="Hide Telemetry"
                   style={{
-                    padding: '2px 5px',
+                    background: 'transparent',
                     border: 'none',
-                    background: isActive ? '#2563eb' : 'transparent',
-                    color: isActive ? '#ffffff' : '#94a3b8',
-                    fontSize: '9px',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: isActive ? 800 : 500,
-                    cursor: 'pointer'
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center'
                   }}
                 >
-                  {item.label}
+                  <X size={11} />
                 </button>
-              );
-            })}
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Top-Right Basemap Switcher */}
+        {showLayerToggles && (
+          <div style={{
+            position: 'absolute',
+            top: '48px',
+            right: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            pointerEvents: 'auto',
+            zIndex: 20
+          }}>
+            {/* Basemap Switcher */}
+            <div style={{ display: 'flex', gap: '2px', background: 'rgba(15, 23, 42, 0.92)', padding: '2px', border: '1px solid #334155', backdropFilter: 'blur(8px)' }}>
+              {[
+                { id: 'google-earth', label: 'Sat' },
+                { id: 'google-terrain', label: 'Terr' },
+                { id: 'osm', label: 'OSM' }
+              ].map((item) => {
+                const isActive = basemapStyle === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setBasemapStyle(item.id as any)}
+                    style={{
+                      padding: '2px 5px',
+                      border: 'none',
+                      background: isActive ? '#2563eb' : 'transparent',
+                      color: isActive ? '#ffffff' : '#94a3b8',
+                      fontSize: '9px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: isActive ? 800 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {onToggleLayerToggles && (
+              <button
+                onClick={onToggleLayerToggles}
+                title="Hide Layer Controls"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid #334155',
+                  color: '#94a3b8',
+                  padding: '3px 5px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Hover H3 Cell Real Physical Telemetry Pill */}
         {hoveredCellData && (
           <div style={{
             position: 'absolute',
-            top: '46px',
-            right: '50px',
+            top: '48px',
+            right: '135px',
             pointerEvents: 'none',
             zIndex: 25
           }}>
@@ -1397,253 +1927,505 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         )}
 
         {/* Route Selector & Individual Toggle Panel */}
-        <div style={{
-          position: 'absolute',
-          top: '50px',
-          left: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          pointerEvents: 'auto',
-          zIndex: 20
-        }}>
+        {showRoutePanel && (
           <div style={{
-            background: 'rgba(15, 23, 42, 0.92)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid #334155',
-            padding: '8px 10px',
-            minWidth: '280px'
+            position: 'absolute',
+            top: showTelemetryHeader ? '122px' : '48px',
+            left: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            pointerEvents: 'auto',
+            zIndex: 20
           }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', fontFamily: 'var(--font-mono)', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>MISSION ROUTES & TOGGLES</span>
-              <span style={{ color: '#38bdf8', fontSize: '9px' }}>CLICK TO SELECT / TOGGLE</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              {routes.map((r) => {
-                const isSelected = r.id === activeRouteId;
-                const isVisible = enabledRoutes[r.id] !== false;
-                const color = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
-                return (
-                  <div
-                    key={r.id}
-                    onClick={() => setSelectedRouteId(r.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '4px 6px',
-                      background: isSelected ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.4)',
-                      border: `1px solid ${isSelected ? color : '#334155'}`,
-                      borderLeft: `4px solid ${color}`,
-                      opacity: isVisible ? 1.0 : 0.45,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {/* Visibility Eye Toggle Button */}
+            {isRoutePanelMinimized ? (
+              <button
+                onClick={() => setIsRoutePanelMinimized(false)}
+                title="Expand Route HUD"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.92)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid #334155',
+                  borderLeft: '4px solid #38bdf8',
+                  color: '#f8fafc',
+                  padding: '6px 12px',
+                  fontSize: '10.5px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                }}
+              >
+                <Navigation size={12} color="#38bdf8" />
+                <span>ROUTES & METRICS HUD</span>
+                <ChevronDown size={13} color="#94a3b8" />
+              </button>
+            ) : (
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid #334155',
+                padding: '8px 10px',
+                minWidth: '280px'
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', fontFamily: 'var(--font-mono)', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Navigation size={12} color="#38bdf8" />
+                    <span>MISSION ROUTES & TOGGLES</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ color: '#38bdf8', fontSize: '9px' }}>CLICK TO SELECT</span>
+                    <button
+                      onClick={() => setIsRoutePanelMinimized(true)}
+                      title="Minimize Routes HUD"
+                      style={{
+                        background: 'rgba(51, 65, 85, 0.6)',
+                        border: '1px solid #475569',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: '1px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    {onToggleRoutePanel && (
                       <button
-                        onClick={(ev) => toggleRouteVisibility(r.id, ev)}
-                        title={isVisible ? `Hide ${r.name}` : `Show ${r.name}`}
+                        onClick={onToggleRoutePanel}
+                        title="Hide Routes HUD"
                         style={{
-                          background: 'transparent',
-                          border: 'none',
+                          background: 'rgba(51, 65, 85, 0.6)',
+                          border: '1px solid #475569',
+                          color: '#94a3b8',
                           cursor: 'pointer',
-                          padding: '1px',
+                          padding: '1px 4px',
                           display: 'flex',
                           alignItems: 'center',
-                          color: isVisible ? color : '#64748b'
+                          justifyContent: 'center'
                         }}
                       >
-                        {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                        <X size={12} />
                       </button>
-
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }}></span>
-                      <span style={{ fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#ffffff' : '#cbd5e1' }}>
-                        {(r.objective || r.id).toUpperCase()}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
-                      <span>{(r.durationDays || r.transitDays).toFixed(1)}d</span>
-                      <span>•</span>
-                      <span>{r.estimatedFuelMT.toFixed(0)} MT</span>
-                      {isSelected && (
-                        <span style={{ color: '#38bdf8', fontWeight: 800 }}>★</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Live Bound Selected Route Metrics Card */}
-            {selectedRoute && (
-              <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #334155', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '9px', fontFamily: 'var(--font-mono)' }}>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>DISTANCE</div>
-                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.distanceNM.toLocaleString()} NM</div>
-                </div>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>SAILING TIME</div>
-                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.transitDays.toFixed(1)} Days</div>
-                </div>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>DWELL TIME</div>
-                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{(selectedRoute.dwellDays || 5.0).toFixed(1)} Days</div>
-                </div>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>TOTAL DURATION</div>
-                  <div style={{ color: '#38bdf8', fontWeight: 800 }}>{(selectedRoute.durationDays || selectedRoute.transitDays).toFixed(1)} Days</div>
-                </div>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>FUEL ESTIMATE</div>
-                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.estimatedFuelMT.toFixed(1)} MT</div>
-                </div>
-                <div>
-                  <div style={{ color: '#94a3b8' }}>MEAN / MAX RISK</div>
-                  <div style={{ color: selectedRoute.meanRisk > 0.3 ? '#f87171' : '#34d399', fontWeight: 800 }}>
-                    {(selectedRoute.meanRisk * 100).toFixed(1)}% / {(selectedRoute.maxRisk * 100).toFixed(1)}%
+                    )}
                   </div>
                 </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {routes.map((r) => {
+                    const isSelected = r.id === activeRouteId;
+                    const isVisible = enabledRoutes[r.id] !== false;
+                    const color = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => handleSelectRoute(r.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '4px 6px',
+                          background: isSelected ? 'rgba(56, 189, 248, 0.18)' : 'rgba(30, 41, 59, 0.4)',
+                          border: `1px solid ${isSelected ? color : '#334155'}`,
+                          borderLeft: `4px solid ${color}`,
+                          opacity: isVisible ? 1.0 : 0.45,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {/* Visibility Eye Toggle Button */}
+                          <button
+                            onClick={(ev) => toggleRouteVisibility(r.id, ev)}
+                            title={isVisible ? `Hide ${r.name}` : `Show ${r.name}`}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '1px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              color: isVisible ? color : '#64748b'
+                            }}
+                          >
+                            {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                          </button>
+
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }}></span>
+                          <span style={{ fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#ffffff' : '#cbd5e1' }}>
+                            {(r.objective || r.id).toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
+                          <span>{(r.durationDays || r.transitDays).toFixed(1)}d</span>
+                          <span>•</span>
+                          <span>{r.estimatedFuelMT.toFixed(0)} MT</span>
+                          {isSelected && (
+                            <span style={{ color: '#38bdf8', fontWeight: 800 }}>★</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Live Bound Selected Route Metrics Card */}
+                {selectedRoute && (
+                  <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #334155', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', fontSize: '9px', fontFamily: 'var(--font-mono)' }}>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>DISTANCE</div>
+                      <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.distanceNM.toLocaleString()} NM</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>SAILING TIME</div>
+                      <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.transitDays.toFixed(1)} Days</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>DWELL TIME</div>
+                      <div style={{ color: '#f8fafc', fontWeight: 800 }}>{(selectedRoute.dwellDays || 5.0).toFixed(1)} Days</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>TOTAL DURATION</div>
+                      <div style={{ color: '#38bdf8', fontWeight: 800 }}>{(selectedRoute.durationDays || selectedRoute.transitDays).toFixed(1)} Days</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>FUEL ESTIMATE</div>
+                      <div style={{ color: '#f8fafc', fontWeight: 800 }}>{selectedRoute.estimatedFuelMT.toFixed(1)} MT</div>
+                    </div>
+                    <div>
+                      <div style={{ color: '#94a3b8' }}>MEAN / MAX RISK</div>
+                      <div style={{ color: selectedRoute.meanRisk > 0.3 ? '#f87171' : '#34d399', fontWeight: 800 }}>
+                        {(selectedRoute.meanRisk * 100).toFixed(1)}% / {(selectedRoute.maxRisk * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* Bottom-Left Clean Map Legend */}
-        <div style={{
-          position: 'absolute',
-          bottom: '12px',
-          left: '12px',
-          pointerEvents: 'auto',
-          zIndex: 20
-        }}>
+        {showLegend && (
           <div style={{
-            background: 'rgba(15, 23, 42, 0.92)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid #334155',
-            padding: '6px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            fontSize: '9.5px',
-            fontFamily: 'var(--font-mono)',
-            color: '#cbd5e1'
+            position: 'absolute',
+            bottom: '12px',
+            left: '12px',
+            pointerEvents: 'auto',
+            zIndex: 20
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '12px', height: '2px', backgroundColor: '#38bdf8', display: 'inline-block' }}></span>
-              <span>Authentic H3 Grid ({authenticH3GeoJSON.features.length.toLocaleString()} cells)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }}></span>
-              <span>Tracked Icebergs (73)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffffff', border: '2px solid #1d4ed8', display: 'inline-block' }}></span>
-              <span>ORV Sagar Kanya</span>
-            </div>
+            {isLegendMinimized ? (
+              <button
+                onClick={() => setIsLegendMinimized(false)}
+                title="Show Map Legend"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.90)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid #334155',
+                  color: '#cbd5e1',
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <Compass size={11} color="#38bdf8" />
+                <span>MAP LEGEND</span>
+                <ChevronUp size={11} />
+              </button>
+            ) : (
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid #334155',
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '9.5px',
+                fontFamily: 'var(--font-mono)',
+                color: '#cbd5e1'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRight: '1px solid #334155', paddingRight: '8px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 800, color: '#38bdf8' }}>
+                    {activeLayer === 'sic' ? 'SEA-ICE (SIC):' : activeLayer === 'risk' ? 'COMPOSITE RISK:' : activeLayer === 'weather' ? 'OCEAN WAVES:' : 'ICEBERG HAZARD:'}
+                  </span>
+                  {activeLayer === 'sic' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '42px', height: '8px', background: 'linear-gradient(to right, rgba(186,230,253,0.3), #60a5fa, #ffffff)', display: 'inline-block', border: '1px solid #38bdf8' }}></span>
+                      <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>0% → 100%</span>
+                    </div>
+                  )}
+                  {activeLayer === 'risk' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '42px', height: '8px', background: 'linear-gradient(to right, #10b981, #eab308, #ef4444, #991b1b)', display: 'inline-block', border: '1px solid #475569' }}></span>
+                      <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>Safe → Danger</span>
+                    </div>
+                  )}
+                  {activeLayer === 'weather' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '42px', height: '8px', background: 'linear-gradient(to right, #38bdf8, #2563eb, #7c3aed, #db2777)', display: 'inline-block', border: '1px solid #475569' }}></span>
+                      <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>0.5m → 7m+</span>
+                    </div>
+                  )}
+                  {activeLayer === 'icebergs' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '42px', height: '8px', background: 'linear-gradient(to right, transparent, #fed7aa, #ea580c)', display: 'inline-block', border: '1px solid #ea580c' }}></span>
+                      <span style={{ fontSize: '8.5px', color: '#94a3b8' }}>Low → High</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: '12px', height: '2px', backgroundColor: '#38bdf8', display: 'inline-block' }}></span>
+                  <span>H3 Grid ({authenticH3GeoJSON.features.length.toLocaleString()} cells)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }}></span>
+                  <span>Tracked Bergs (73)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffffff', border: '2px solid #1d4ed8', display: 'inline-block' }}></span>
+                  <span>ORV Sagar Kanya</span>
+                </div>
+                <button
+                  onClick={() => setIsLegendMinimized(true)}
+                  title="Minimize Legend"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginLeft: '4px'
+                  }}
+                >
+                  <ChevronDown size={13} />
+                </button>
+                {onToggleLegend && (
+                  <button
+                    onClick={onToggleLegend}
+                    title="Hide Legend"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* 9. Time Slider & Playback Controls Bar (T+0 to T+90 Days) */}
-      <div style={{
-        padding: '8px 16px',
-        background: '#0f172a',
-        borderTop: '1px solid #334155',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        zIndex: 30
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-          
-          {/* Play / Pause & Horizon Readout */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => setIsTimelinePlaying(!isTimelinePlaying)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 12px',
-                background: isTimelinePlaying ? '#ef4444' : '#2563eb',
-                border: '1px solid',
-                borderColor: isTimelinePlaying ? '#dc2626' : '#1d4ed8',
-                color: '#ffffff',
-                fontSize: '11px',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 800,
-                cursor: 'pointer'
-              }}
-            >
-              {isTimelinePlaying ? <Pause size={13} /> : <Play size={13} />}
-              <span>{isTimelinePlaying ? 'PAUSE' : 'PLAY 90D'}</span>
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Calendar size={13} color="#38bdf8" />
-              <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
-                TIMELINE: <span style={{ color: '#38bdf8' }}>T+{sliderDay} DAYS</span>
-              </span>
-              <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-                (Forecast Horizon: <strong style={{ color: '#22c55e' }}>{currentHz}</strong>)
+      {showTimelineBar && (
+        isTimelineMinimized ? (
+          <div style={{
+            padding: '4px 14px',
+            background: '#0f172a',
+            borderTop: '1px solid #334155',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            zIndex: 30
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={() => setIsTimelinePlaying(!isTimelinePlaying)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 10px',
+                  background: isTimelinePlaying ? '#ef4444' : '#2563eb',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                {isTimelinePlaying ? <Pause size={10} /> : <Play size={10} />}
+                <span>{isTimelinePlaying ? 'PAUSE' : 'PLAY'}</span>
+              </button>
+              <span style={{ fontSize: '10.5px', fontFamily: 'var(--font-mono)', color: '#f8fafc', fontWeight: 700 }}>
+                TIMELINE: <strong style={{ color: '#38bdf8' }}>T+{sliderDay}d</strong> ({currentHz})
               </span>
             </div>
+            <button
+              onClick={() => setIsTimelineMinimized(false)}
+              title="Expand Timeline Controls"
+              style={{
+                background: 'rgba(30, 41, 59, 0.7)',
+                border: '1px solid #334155',
+                color: '#38bdf8',
+                padding: '3px 8px',
+                fontSize: '10px',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <ChevronUp size={12} />
+              <span>EXPAND TIMELINE (90D)</span>
+            </button>
           </div>
-
-          {/* Quick-Jump Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: '9px', color: '#64748b', fontFamily: 'var(--font-mono)', marginRight: '4px' }}>
-              QUICK JUMP:
-            </span>
-            {quickJumpDays.map((q) => {
-              const isCurrent = sliderDay === q.day;
-              return (
+        ) : (
+          <div style={{
+            padding: '8px 16px',
+            background: '#0f172a',
+            borderTop: '1px solid #334155',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            zIndex: 30
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+              
+              {/* Play / Pause & Horizon Readout */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
-                  key={q.label}
-                  onClick={() => handleSliderChange(q.day)}
+                  onClick={() => setIsTimelinePlaying(!isTimelinePlaying)}
                   style={{
-                    padding: '3px 8px',
-                    fontSize: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 12px',
+                    background: isTimelinePlaying ? '#ef4444' : '#2563eb',
+                    border: '1px solid',
+                    borderColor: isTimelinePlaying ? '#dc2626' : '#1d4ed8',
+                    color: '#ffffff',
+                    fontSize: '11px',
                     fontFamily: 'var(--font-mono)',
-                    fontWeight: isCurrent ? 800 : 500,
-                    background: isCurrent ? '#2563eb' : 'rgba(30, 41, 59, 0.7)',
-                    border: `1px solid ${isCurrent ? '#38bdf8' : '#334155'}`,
-                    color: isCurrent ? '#ffffff' : '#cbd5e1',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    fontWeight: 800,
+                    cursor: 'pointer'
                   }}
                 >
-                  {q.label}
+                  {isTimelinePlaying ? <Pause size={13} /> : <Play size={13} />}
+                  <span>{isTimelinePlaying ? 'PAUSE' : 'PLAY 90D'}</span>
                 </button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Continuous 90-Day Range Slider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
-          <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+0d</span>
-          <input
-            type="range"
-            min={0}
-            max={90}
-            step={1}
-            value={sliderDay}
-            onChange={(e) => handleSliderChange(Number(e.target.value))}
-            style={{
-              flex: 1,
-              height: '6px',
-              accentColor: '#38bdf8',
-              cursor: 'pointer'
-            }}
-          />
-          <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+90d</span>
-        </div>
-      </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={13} color="#38bdf8" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+                    TIMELINE: <span style={{ color: '#38bdf8' }}>T+{sliderDay} DAYS</span>
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+                    (Forecast Horizon: <strong style={{ color: '#22c55e' }}>{currentHz}</strong>)
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick-Jump Buttons & Minimize */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '9px', color: '#64748b', fontFamily: 'var(--font-mono)', marginRight: '4px' }}>
+                  QUICK JUMP:
+                </span>
+                {quickJumpDays.map((q) => {
+                  const isCurrent = sliderDay === q.day;
+                  return (
+                    <button
+                      key={q.label}
+                      onClick={() => handleSliderChange(q.day)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '10px',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: isCurrent ? 800 : 500,
+                        background: isCurrent ? '#2563eb' : 'rgba(30, 41, 59, 0.7)',
+                        border: `1px solid ${isCurrent ? '#38bdf8' : '#334155'}`,
+                        color: isCurrent ? '#ffffff' : '#cbd5e1',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {q.label}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setIsTimelineMinimized(true)}
+                  title="Minimize Timeline Controls"
+                  style={{
+                    background: 'rgba(30, 41, 59, 0.7)',
+                    border: '1px solid #334155',
+                    color: '#94a3b8',
+                    padding: '3px 6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginLeft: '4px'
+                  }}
+                >
+                  <ChevronDown size={13} />
+                </button>
+                {onToggleTimelineBar && (
+                  <button
+                    onClick={onToggleTimelineBar}
+                    title="Hide Timeline Bar"
+                    style={{
+                      background: 'rgba(30, 41, 59, 0.7)',
+                      border: '1px solid #334155',
+                      color: '#94a3b8',
+                      padding: '3px 6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Continuous 90-Day Range Slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+              <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+0d</span>
+              <input
+                type="range"
+                min={0}
+                max={90}
+                step={1}
+                value={sliderDay}
+                onChange={(e) => handleSliderChange(Number(e.target.value))}
+                style={{
+                  flex: 1,
+                  height: '6px',
+                  accentColor: '#38bdf8',
+                  cursor: 'pointer'
+                }}
+              />
+              <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: '#64748b' }}>T+90d</span>
+            </div>
+          </div>
+        )
+      )}
 
     </div>
   );
