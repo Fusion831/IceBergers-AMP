@@ -251,8 +251,8 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [inspectionPoint, setInspectionPoint] = useState<InspectionData>(INITIAL_INSPECTION);
   const [activeMapLayer, setActiveMapLayer] = useState<'sic' | 'icebergs' | 'risk' | 'weather'>('sic');
 
-  // Progressive visibility states
-  const [showTrajectories, setShowTrajectories] = useState<boolean>(false);
+  // Progressive visibility states (Trajectories enabled by default)
+  const [showTrajectories, setShowTrajectories] = useState<boolean>(true);
   const [showH3Grid, setShowH3Grid] = useState<boolean>(true);
   const [showRoutes, setShowRoutes] = useState<boolean>(true);
   const [showAlternativeRoutes, setShowAlternativeRoutes] = useState<boolean>(true);

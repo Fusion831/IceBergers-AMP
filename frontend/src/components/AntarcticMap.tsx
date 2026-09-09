@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import {
   Compass,
-  Radio,
   Play,
   Pause,
   Calendar,
@@ -131,39 +130,40 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     toggleRouteEnabled(routeId);
   };
 
-  // Sync external selectedHorizon changes into slider
+  const prevPropHorizonRef = useRef<string>(selectedHorizon);
+
+  // Sync external selectedHorizon changes into slider ONLY when selectedHorizon genuinely changes from outside
   useEffect(() => {
-    if (selectedHorizon && HORIZON_DAYS_MAP[selectedHorizon] !== undefined) {
-      if (HORIZON_DAYS_MAP[selectedHorizon] !== sliderDay && !isTimelinePlaying) {
+    if (selectedHorizon && selectedHorizon !== prevPropHorizonRef.current) {
+      prevPropHorizonRef.current = selectedHorizon;
+      if (HORIZON_DAYS_MAP[selectedHorizon] !== undefined && !isTimelinePlaying) {
         setSliderDay(HORIZON_DAYS_MAP[selectedHorizon]);
       }
     }
-  }, [selectedHorizon, isTimelinePlaying, sliderDay]);
+  }, [selectedHorizon, isTimelinePlaying]);
 
-  // Handle Play/Pause timer (800ms per day step)
+  // Handle Play/Pause timer (250ms per day step: 90 days in 22.5s)
   useEffect(() => {
     if (!isTimelinePlaying) return;
     const interval = setInterval(() => {
       setSliderDay((prev) => {
         const next = prev >= 90 ? 0 : prev + 1;
         const newHz = DAY_TO_NEAREST_HORIZON(next);
-        if (newHz !== currentHz) {
-          setTimeHorizon(newHz as any);
-          if (onHorizonChange) onHorizonChange(newHz);
-        }
+        prevPropHorizonRef.current = newHz;
+        setTimeHorizon(newHz as any);
+        if (onHorizonChange) onHorizonChange(newHz);
         return next;
       });
-    }, 800);
+    }, 250);
     return () => clearInterval(interval);
-  }, [isTimelinePlaying, currentHz, setTimeHorizon, onHorizonChange]);
+  }, [isTimelinePlaying, setTimeHorizon, onHorizonChange]);
 
   const handleSliderChange = (day: number) => {
     setSliderDay(day);
     const newHz = DAY_TO_NEAREST_HORIZON(day);
-    if (newHz !== currentHz) {
-      setTimeHorizon(newHz as any);
-      if (onHorizonChange) onHorizonChange(newHz);
-    }
+    prevPropHorizonRef.current = newHz;
+    setTimeHorizon(newHz as any);
+    if (onHorizonChange) onHorizonChange(newHz);
   };
 
   const getTileUrl = (style: 'google-earth' | 'google-terrain' | 'osm') => {
@@ -176,6 +176,23 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       default:
         return 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
     }
+  };
+
+  // Helper to unwrap polygon coordinates that cross the antimeridian (+180/-180)
+  const sanitizeGeometry = (geom: any) => {
+    if (!geom || geom.type !== 'Polygon' || !geom.coordinates) return geom;
+    const newRings = geom.coordinates.map((ring: number[][]) => {
+      if (!ring || ring.length === 0) return ring;
+      let prevLon = ring[0][0];
+      return ring.map(([lon, lat]: number[]) => {
+        let adjLon = lon;
+        if (adjLon - prevLon > 180) adjLon -= 360;
+        else if (prevLon - adjLon > 180) adjLon += 360;
+        prevLon = adjLon;
+        return [adjLon, lat];
+      });
+    });
+    return { ...geom, coordinates: newRings };
   };
 
   // 1. Authentic H3 Grid (RES-5 cells across circum-Antarctic and corridor)
@@ -236,7 +253,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           wind_risk: roundVal(risk.wind_risk ?? base.wind_risk ?? 0.1, 3),
           hard_blocked: Boolean(risk.hard_blocked ?? base.hard_blocked ?? false)
         },
-        geometry: feat.geometry
+        geometry: sanitizeGeometry(feat.geometry)
       };
     });
 
@@ -353,6 +370,53 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     } as GeoJSON.FeatureCollection;
   }, [icebergsList, sliderDay, selectedIceberg]);
 
+  // 3b. Real-time live kinematic telemetry for the selected iceberg at current sliderDay
+  const activeIcebergLive = useMemo(() => {
+    if (!selectedIceberg) return null;
+    const berg = icebergsList.find((b: any) => b.id === selectedIceberg.id) || selectedIceberg;
+    let coords: [number, number] = [0, 0];
+    let speed = 0.24;
+    let depth = 3200;
+    let status = berg.status || 'ACTIVE_DRIFT';
+    let driftedNM = 0.0;
+
+    if (berg.trajectoryPoints && berg.trajectoryPoints.length > 0) {
+      const floatIdx = (sliderDay / 90) * (berg.trajectoryPoints.length - 1);
+      const idx0 = Math.floor(floatIdx);
+      const idx1 = Math.min(idx0 + 1, berg.trajectoryPoints.length - 1);
+      const frac = floatIdx - idx0;
+      const p0 = berg.trajectoryPoints[idx0];
+      const p1 = berg.trajectoryPoints[idx1];
+
+      coords = [
+        +(p0.lon + (p1.lon - p0.lon) * frac).toFixed(4),
+        +(p0.lat + (p1.lat - p0.lat) * frac).toFixed(4)
+      ];
+      speed = p0.speed_mps ? +(p0.speed_mps * 1.94384).toFixed(2) : 0.24;
+      depth = p0.bathymetry_depth_m ?? 3200;
+      status = p0.status || status;
+
+      // Cumulative drift distance from Day 0 to current sliderDay
+      const pStart = berg.trajectoryPoints[0];
+      const dLat = (coords[1] - pStart.lat) * 60; // 1 deg lat = 60 NM
+      const midLatRad = ((coords[1] + pStart.lat) / 2) * (Math.PI / 180);
+      const dLon = (coords[0] - pStart.lon) * 60 * Math.cos(midLatRad);
+      driftedNM = +Math.sqrt(dLat * dLat + dLon * dLon).toFixed(1);
+    } else if (berg.latestObservation) {
+      coords = [berg.latestObservation.longitude, berg.latestObservation.latitude];
+    }
+
+    return {
+      ...berg,
+      coords,
+      speed,
+      depth,
+      status,
+      driftedNM,
+      day: sliderDay
+    };
+  }, [selectedIceberg, icebergsList, sliderDay]);
+
   // 4. Iceberg Trajectories (Precomputed 90-day drift lines)
   const icebergTrajectoriesGeoJSON = useMemo(() => {
     if (!icebergsList || icebergsList.length === 0) {
@@ -386,15 +450,14 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
     } as GeoJSON.FeatureCollection;
   }, [icebergsList, selectedIceberg]);
 
-  // 5. Canonical Routes GeoJSON - Each route is a separate feature with its own color
+  // 5. Canonical Routes GeoJSON - Filtered to visible/enabled routes
   const canonicalRoutesGeoJSON = useMemo(() => {
+    const visibleRoutes = routes.filter((r) => enabledRoutes[r.id] !== false);
     return {
       type: 'FeatureCollection',
-      features: routes.map((r) => {
+      features: visibleRoutes.map((r) => {
         const routeColor = STABLE_ROUTE_COLORS[r.id] || r.color || '#3b82f6';
         const isSelected = r.id === activeRouteId;
-        // Use numeric 1/0 for visibility so MapLibre filter works reliably
-        const visibleNum = enabledRoutes[r.id] !== false ? 1 : 0;
         return {
           type: 'Feature',
           id: r.id,
@@ -411,14 +474,13 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             meanRisk: r.meanRisk,
             maxRisk: r.maxRisk,
             isSelected: isSelected ? 1 : 0,
-            visibleNum,
             shortLabel: {
-              fastest: 'FAST',
-              shortest: 'SHORT',
-              safest: 'SAFE',
-              fuel_efficient: 'FUEL',
-              balanced: 'BAL'
-            }[r.id] || r.id.toUpperCase().slice(0, 4)
+              fastest: 'FASTEST',
+              shortest: 'SHORTEST',
+              safest: 'SAFEST',
+              fuel_efficient: 'FUEL-EFF',
+              balanced: 'BALANCED'
+            }[r.id] || r.id.toUpperCase().slice(0, 5)
           },
           geometry: {
             type: 'LineString',
@@ -752,9 +814,9 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         }
       });
 
-      // 6. Iceberg Trajectories (OFF by default, subtle 1px, selected 2px)
+      // 6a. Iceberg Trajectories for All Tracked Icebergs (vibrant dashed coral/orange lines)
       mapInstance.addLayer({
-        id: 'iceberg-trajectories-line',
+        id: 'iceberg-trajectories-all',
         type: 'line',
         source: 'iceberg-trajectories-source',
         layout: {
@@ -763,22 +825,51 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           'line-cap': 'round'
         },
         paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            'rgba(249, 115, 22, 0.60)',
-            'rgba(249, 115, 22, 0.15)'
-          ],
-          'line-width': [
-            'case',
-            ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            2.0,
-            1.0
-          ]
+          'line-color': '#f97316',
+          'line-width': 1.8,
+          'line-opacity': 0.65,
+          'line-dasharray': [4, 2]
         }
       });
 
-      // 7. Unselected Routes — subtle dashed lines, low opacity, no blur
+      // 6b. Selected Iceberg Trajectory Glow (Luminous 10px halo under the active iceberg's 90d drift line)
+      mapInstance.addLayer({
+        id: 'iceberg-trajectory-selected-glow',
+        type: 'line',
+        source: 'iceberg-trajectories-source',
+        layout: {
+          visibility: selectedIceberg ? 'visible' : 'none',
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ea580c',
+          'line-width': 10.0,
+          'line-opacity': 0.75,
+          'line-blur': 4.0
+        },
+        filter: ['==', ['get', 'id'], selectedIceberg?.id || '']
+      });
+
+      // 6c. Selected Iceberg Trajectory Line (Thick, solid, vibrant line)
+      mapInstance.addLayer({
+        id: 'iceberg-trajectory-selected-line',
+        type: 'line',
+        source: 'iceberg-trajectories-source',
+        layout: {
+          visibility: selectedIceberg ? 'visible' : 'none',
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#fed7aa',
+          'line-width': 3.5,
+          'line-opacity': 1.0
+        },
+        filter: ['==', ['get', 'id'], selectedIceberg?.id || '']
+      });
+
+      // 7. Unselected Routes — uniform solid lines, clear 0.80 opacity, no dashes
       mapInstance.addLayer({
         id: 'routes-unselected-line',
         type: 'line',
@@ -790,22 +881,20 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         paint: {
           'line-color': [
             'match', ['get', 'id'],
-            'fastest',        '#3b82f6',
+            'fastest',        '#38bdf8',
             'shortest',       '#f59e0b',
             'safest',         '#22c55e',
             'fuel_efficient', '#a855f7',
             'balanced',       '#14b8a6',
             '#94a3b8'
           ],
-          'line-width': 1.5,
-          'line-opacity': 0.35,
-          'line-dasharray': [5, 4]
+          'line-width': 3.0,
+          'line-opacity': 0.80
         },
         filter: ['!=', ['get', 'id'], activeRouteId]
       });
 
-
-      // 8. Selected Route Glow — white halo under the selected route
+      // 8. Selected Route Glow — subtle soft aura to accent selection without heavy bulk
       mapInstance.addLayer({
         id: 'routes-selected-glow',
         type: 'line',
@@ -815,15 +904,23 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           'line-cap': 'round'
         },
         paint: {
-          'line-color': '#ffffff',
-          'line-width': 10.0,
-          'line-opacity': 0.55,
-          'line-blur': 3.0
+          'line-color': [
+            'match', ['get', 'id'],
+            'fastest',        '#38bdf8',
+            'shortest',       '#f59e0b',
+            'safest',         '#22c55e',
+            'fuel_efficient', '#a855f7',
+            'balanced',       '#14b8a6',
+            '#38bdf8'
+          ],
+          'line-width': 7.0,
+          'line-opacity': 0.40,
+          'line-blur': 2.0
         },
         filter: ['==', ['get', 'id'], activeRouteId]
       });
 
-
+      // 8a. Selected Route Line — uniform solid line matching other routes in thickness
       mapInstance.addLayer({
         id: 'routes-selected-line',
         type: 'line',
@@ -835,20 +932,18 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         paint: {
           'line-color': [
             'match', ['get', 'id'],
-            'fastest',        '#3b82f6',
+            'fastest',        '#38bdf8',
             'shortest',       '#f59e0b',
             'safest',         '#22c55e',
             'fuel_efficient', '#a855f7',
             'balanced',       '#14b8a6',
             '#ffffff'
           ],
-          'line-width': 5.0,
+          'line-width': 3.0,
           'line-opacity': 1.0
         },
-        filter: ['all', ['==', ['get', 'id'], activeRouteId], ['==', ['get', 'visibleNum'], 1]]
-
+        filter: ['==', ['get', 'id'], activeRouteId]
       });
-
 
       // 8b. Route Labels (short readable name along each visible route)
       mapInstance.addLayer({
@@ -862,7 +957,7 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             'fastest',        'FASTEST',
             'shortest',       'SHORTEST',
             'safest',         'SAFEST',
-            'fuel_efficient', 'FUEL-EFFICIENT',
+            'fuel_efficient', 'FUEL-EFF',
             'balanced',       'BALANCED',
             'ROUTE'
           ],
@@ -884,11 +979,10 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             'balanced',       '#2dd4bf',
             '#ffffff'
           ],
-          'text-halo-color': '#000a1a',
-          'text-halo-width': 2.0,
+          'text-halo-color': '#080d1a',
+          'text-halo-width': 2.5,
           'text-opacity': 1.0
-        },
-        filter: ['==', ['get', 'visibleNum'], 1]
+        }
       });
 
 
@@ -938,40 +1032,60 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         }
       });
 
-      // 11. Iceberg Observation Points (~73 tracked bergs, 4px radius, #f97316, opacity 0.8)
+      // 11a. Iceberg Clickable Hit Target (14px transparent circle for easy clicks)
+      mapInstance.addLayer({
+        id: 'icebergs-hit',
+        type: 'circle',
+        source: 'icebergs-source',
+        layout: {
+          visibility: showIcebergs ? 'visible' : 'none'
+        },
+        paint: {
+          'circle-radius': 14.0,
+          'circle-color': 'rgba(0, 0, 0, 0.0)'
+        }
+      });
+
+      // 11b. Iceberg Observation Points (~73 tracked bergs, 5.5px radius, #f97316, opacity 0.90)
       mapInstance.addLayer({
         id: 'icebergs-point',
         type: 'circle',
         source: 'icebergs-source',
+        layout: {
+          visibility: showIcebergs ? 'visible' : 'none'
+        },
         paint: {
           'circle-radius': [
             'case',
             ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            8.0,
-            4.0
+            9.0,
+            5.5
           ],
           'circle-color': '#f97316',
-          'circle-opacity': 0.80,
+          'circle-opacity': 0.90,
           'circle-stroke-width': [
             'case',
             ['==', ['get', 'id'], selectedIceberg?.id || ''],
-            2.0,
-            0.5
+            2.5,
+            1.5
           ],
           'circle-stroke-color': '#ffffff'
         }
       });
 
-      // 13. Selected Iceberg Highlight (Yellow halo)
+      // 13. Selected Iceberg Highlight (Luminous 20px Orange Halo)
       mapInstance.addLayer({
         id: 'icebergs-selected-halo',
         type: 'circle',
         source: 'icebergs-source',
+        layout: {
+          visibility: selectedIceberg ? (showIcebergs ? 'visible' : 'none') : 'none'
+        },
         paint: {
-          'circle-radius': 16,
-          'circle-color': '#fbbf24',
-          'circle-opacity': 0.45,
-          'circle-blur': 0.6
+          'circle-radius': 20.0,
+          'circle-color': '#f97316',
+          'circle-opacity': 0.60,
+          'circle-blur': 0.5
         },
         filter: ['==', ['get', 'id'], selectedIceberg?.id || '']
       });
@@ -1092,6 +1206,16 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
 
       // Click Canonical H3 Cell: Select cell & open Cell Inspector
       mapInstance.on('click', 'canonical-h3-hit', (e) => {
+        // Prevent click conflict with icebergs, routes, or trajectories
+        const hitIcebergs = mapInstance.queryRenderedFeatures(e.point, { layers: ['icebergs-hit', 'icebergs-point'] });
+        if (hitIcebergs && hitIcebergs.length > 0) return;
+
+        const hitRoutes = mapInstance.queryRenderedFeatures(e.point, { layers: ['routes-unselected-line', 'routes-selected-line'] });
+        if (hitRoutes && hitRoutes.length > 0) return;
+
+        const hitTraj = mapInstance.queryRenderedFeatures(e.point, { layers: ['iceberg-trajectories-all', 'iceberg-trajectory-selected-line'] });
+        if (hitTraj && hitTraj.length > 0) return;
+
         if (!e.features || e.features.length === 0) return;
         const feat = e.features[0];
         const props = feat.properties || {};
@@ -1118,48 +1242,78 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
         }
       });
 
-      // Hover Iceberg: 6px, opacity 1.0, tooltip ID: <id>
-      mapInstance.on('mouseenter', 'icebergs-point', (e) => {
-        mapInstance.getCanvas().style.cursor = 'pointer';
-        if (!e.features || e.features.length === 0) return;
-        const feat = e.features[0];
-        const coords = (feat.geometry as any).coordinates.slice();
-        const bergId = feat.properties?.id;
+      // Hover Iceberg Hit / Point: cursor pointer & tooltip
+      ['icebergs-hit', 'icebergs-point'].forEach((layerId) => {
+        mapInstance.on('mouseenter', layerId, (e) => {
+          mapInstance.getCanvas().style.cursor = 'pointer';
+          if (!e.features || e.features.length === 0) return;
+          const feat = e.features[0];
+          const coords = (feat.geometry as any).coordinates.slice();
+          const bergId = feat.properties?.id;
 
-        if (!hoveredPopupRef.current) {
-          hoveredPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
-        }
-        hoveredPopupRef.current
-          .setLngLat(coords)
-          .setHTML(`<div style="background:#0f172a;color:#f97316;font-family:monospace;font-size:10px;font-weight:bold;padding:2px 6px;border:1px solid #f97316;">ID: ${bergId}</div>`)
-          .addTo(mapInstance);
+          if (!hoveredPopupRef.current) {
+            hoveredPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+          }
+          hoveredPopupRef.current
+            .setLngLat(coords)
+            .setHTML(`<div style="background:#0d1117;color:#f97316;font-family:system-ui,-apple-system,sans-serif;font-size:11px;font-weight:700;padding:4px 8px;border:1px solid #f97316;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.5);">Iceberg: ${bergId}</div>`)
+            .addTo(mapInstance);
+        });
+
+        mapInstance.on('mouseleave', layerId, () => {
+          mapInstance.getCanvas().style.cursor = '';
+          if (hoveredPopupRef.current) {
+            hoveredPopupRef.current.remove();
+            hoveredPopupRef.current = null;
+          }
+        });
+
+        // Click Iceberg: select iceberg, highlight trajectory & open Iceberg Inspector
+        mapInstance.on('click', layerId, (e) => {
+          if (!e.features || e.features.length === 0) return;
+          const feat = e.features[0];
+          const bergId = feat.properties?.id;
+          const coords = (feat.geometry as any).coordinates;
+          const found = icebergsList.find((b: any) => b.id === bergId);
+          if (found) {
+            setSelectedIceberg({
+              ...found,
+              currentCoords: coords,
+              speed_knots: feat.properties?.speed_knots,
+              depth_m: feat.properties?.depth_m
+            });
+            setSelectedH3Cell(null);
+            setSelectedSegment(null);
+          }
+        });
       });
 
-      mapInstance.on('mouseleave', 'icebergs-point', () => {
-        mapInstance.getCanvas().style.cursor = '';
-        if (hoveredPopupRef.current) {
-          hoveredPopupRef.current.remove();
-          hoveredPopupRef.current = null;
-        }
-      });
-
-      // Click Iceberg: 8px, white outline 2px, open Iceberg Inspector
-      mapInstance.on('click', 'icebergs-point', (e) => {
-        if (!e.features || e.features.length === 0) return;
-        const feat = e.features[0];
-        const bergId = feat.properties?.id;
-        const coords = (feat.geometry as any).coordinates;
-        const found = icebergsList.find((b: any) => b.id === bergId);
-        if (found) {
-          setSelectedIceberg({
-            ...found,
-            currentCoords: coords,
-            speed_knots: feat.properties?.speed_knots,
-            depth_m: feat.properties?.depth_m
-          });
-          setSelectedH3Cell(null);
-          setSelectedSegment(null);
-        }
+      // Click / Hover Iceberg Trajectory Lines: selecting an iceberg by clicking its drift path
+      ['iceberg-trajectories-all', 'iceberg-trajectory-selected-line'].forEach((layerId) => {
+        mapInstance.on('mouseenter', layerId, () => {
+          mapInstance.getCanvas().style.cursor = 'pointer';
+        });
+        mapInstance.on('mouseleave', layerId, () => {
+          mapInstance.getCanvas().style.cursor = '';
+        });
+        mapInstance.on('click', layerId, (e) => {
+          if (!e.features || e.features.length === 0) return;
+          const bergId = e.features[0].properties?.id;
+          const found = icebergsList.find((b: any) => b.id === bergId);
+          if (found) {
+            const coords = found.latestObservation
+              ? [found.latestObservation.longitude, found.latestObservation.latitude]
+              : [0, 0];
+            setSelectedIceberg({
+              ...found,
+              currentCoords: coords,
+              speed_knots: 0.24,
+              depth_m: 3200
+            });
+            setSelectedH3Cell(null);
+            setSelectedSegment(null);
+          }
+        });
       });
 
       // Click Route Line: Select route
@@ -1207,105 +1361,98 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
 
   // Update Display-Aggregated SIC Source on slider changes
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('display-aggregated-sic-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(displayAggregateSICGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('display-aggregated-sic-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(displayAggregateSICGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [displayAggregateSICGeoJSON]);
 
   // Update Canonical H3 Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('canonical-h3-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(authenticH3GeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('canonical-h3-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(authenticH3GeoJSON);
+    } catch {
+      // source pending
+    }
   }, [authenticH3GeoJSON]);
 
   // Update Canonical Routes Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('canonical-routes-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(canonicalRoutesGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('canonical-routes-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(canonicalRoutesGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [canonicalRoutesGeoJSON]);
 
   // Update Iceberg Positions Source on Slider Day
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('icebergs-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(currentIcebergsGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('icebergs-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(currentIcebergsGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [currentIcebergsGeoJSON]);
 
   // Update Iceberg Trajectories Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('iceberg-trajectories-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(icebergTrajectoriesGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('iceberg-trajectories-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(icebergTrajectoriesGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [icebergTrajectoriesGeoJSON]);
 
   // Update Vessel Position Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('vessel-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(vesselGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('vessel-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(vesselGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [vesselGeoJSON]);
 
   // Update Route Segment Inspection Source
   useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-    const source = map.current.getSource('route-segments-source') as maplibregl.GeoJSONSource;
-    if (source) source.setData(selectedRouteSegmentsGeoJSON);
+    if (!map.current) return;
+    try {
+      const source = map.current.getSource('route-segments-source') as maplibregl.GeoJSONSource;
+      if (source && typeof source.setData === 'function') source.setData(selectedRouteSegmentsGeoJSON);
+    } catch {
+      // source pending
+    }
   }, [selectedRouteSegmentsGeoJSON]);
 
-  // Update Route Visibility and Filters when activeRouteId or enabledRoutes changes
+  // Update Route Selection Filters when activeRouteId changes
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
     try {
-      const enabledIds = Object.keys(enabledRoutes).filter((id) => enabledRoutes[id] !== false);
-      const isSelectedVisible = enabledRoutes[activeRouteId] !== false;
-      const allEnabled = enabledIds.length > 0;
-
-      // Selected route: show only if its ID is in enabledIds
       if (map.current.getLayer('routes-selected-line')) {
-        map.current.setFilter('routes-selected-line',
-          isSelectedVisible
-            ? ['==', ['get', 'id'], activeRouteId]
-            : ['==', ['get', 'id'], '__none__']
-        );
-        map.current.setLayoutProperty('routes-selected-line', 'visibility', 'visible');
+        map.current.setFilter('routes-selected-line', ['==', ['get', 'id'], activeRouteId]);
       }
       if (map.current.getLayer('routes-selected-glow')) {
-        map.current.setFilter('routes-selected-glow',
-          isSelectedVisible
-            ? ['==', ['get', 'id'], activeRouteId]
-            : ['==', ['get', 'id'], '__none__']
-        );
-        map.current.setLayoutProperty('routes-selected-glow', 'visibility', 'visible');
+        map.current.setFilter('routes-selected-glow', ['==', ['get', 'id'], activeRouteId]);
       }
-
-      // Unselected routes: show all enabled routes except the active one
       if (map.current.getLayer('routes-unselected-line')) {
-        const unselectedEnabled = enabledIds.filter(id => id !== activeRouteId);
-        if (unselectedEnabled.length > 0) {
-          map.current.setFilter('routes-unselected-line', [
-            'in', ['get', 'id'], ['literal', unselectedEnabled]
-          ]);
-          map.current.setLayoutProperty('routes-unselected-line', 'visibility', 'visible');
-        } else {
-          map.current.setLayoutProperty('routes-unselected-line', 'visibility', 'none');
-        }
-      }
-
-      // Labels: show for all enabled routes
-      if (map.current.getLayer('routes-labels')) {
-        if (allEnabled) {
-          map.current.setFilter('routes-labels', ['in', ['get', 'id'], ['literal', enabledIds]]);
-          map.current.setLayoutProperty('routes-labels', 'visibility', 'visible');
-        } else {
-          map.current.setLayoutProperty('routes-labels', 'visibility', 'none');
-        }
+        map.current.setFilter('routes-unselected-line', ['!=', ['get', 'id'], activeRouteId]);
       }
     } catch {
       // style pending
     }
-  }, [activeRouteId, enabledRoutes]);
+  }, [activeRouteId]);
 
 
 
@@ -1339,42 +1486,77 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       if (map.current.getLayer('icebergs-point')) {
         map.current.setLayoutProperty('icebergs-point', 'visibility', vis);
       }
+      if (map.current.getLayer('icebergs-hit')) {
+        map.current.setLayoutProperty('icebergs-hit', 'visibility', vis);
+      }
       if (map.current.getLayer('icebergs-selected-halo')) {
-        map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', vis);
+        map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', selectedIceberg ? vis : 'none');
       }
     } catch {
       // style pending
     }
-  }, [showIcebergs]);
+  }, [showIcebergs, selectedIceberg]);
 
-  // Update Iceberg Drift Trajectory Lines Visibility
+  // Update Iceberg Drift Trajectory Lines Visibility (All 73 drift lines)
   useEffect(() => {
     if (!map.current) return;
     try {
       const vis = showTrajectories ? 'visible' : 'none';
-      if (map.current.getLayer('iceberg-trajectories-line')) {
-        map.current.setLayoutProperty('iceberg-trajectories-line', 'visibility', vis);
+      if (map.current.getLayer('iceberg-trajectories-all')) {
+        map.current.setLayoutProperty('iceberg-trajectories-all', 'visibility', vis);
       }
     } catch {
       // style pending
     }
   }, [showTrajectories]);
 
-  // Update Selected Iceberg Filter
+  // Update Selected Iceberg Filter & Trajectory Highlights
   useEffect(() => {
     if (!map.current) return;
     try {
       const selId = selectedIceberg?.id || '';
+      const isSelVisible = selId ? 'visible' : 'none';
+
+      // 1. Highlight selected iceberg's 90-day drift trajectory with glowing halo & thick line
+      if (map.current.getLayer('iceberg-trajectory-selected-glow')) {
+        map.current.setFilter('iceberg-trajectory-selected-glow', ['==', ['get', 'id'], selId]);
+        map.current.setLayoutProperty('iceberg-trajectory-selected-glow', 'visibility', isSelVisible);
+      }
+      if (map.current.getLayer('iceberg-trajectory-selected-line')) {
+        map.current.setFilter('iceberg-trajectory-selected-line', ['==', ['get', 'id'], selId]);
+        map.current.setLayoutProperty('iceberg-trajectory-selected-line', 'visibility', isSelVisible);
+      }
+
+      // 2. Highlight selected iceberg's point marker & halo
       if (map.current.getLayer('icebergs-selected-halo')) {
         map.current.setFilter('icebergs-selected-halo', ['==', ['get', 'id'], selId]);
+        map.current.setLayoutProperty('icebergs-selected-halo', 'visibility', isSelVisible);
       }
       if (map.current.getLayer('icebergs-point')) {
         map.current.setPaintProperty('icebergs-point', 'circle-radius', [
           'case',
           ['==', ['get', 'id'], selId],
-          8.0,
-          4.0
+          9.0,
+          5.5
         ] as any);
+        map.current.setPaintProperty('icebergs-point', 'circle-stroke-width', [
+          'case',
+          ['==', ['get', 'id'], selId],
+          2.5,
+          1.5
+        ] as any);
+      }
+
+      // 3. Smoothly pan to selected iceberg if available
+      if (selectedIceberg) {
+        const coords = selectedIceberg.currentCoords || (selectedIceberg.latestObservation ? [selectedIceberg.latestObservation.longitude, selectedIceberg.latestObservation.latitude] : null);
+        if (coords && coords[0] !== 0 && coords[1] !== 0) {
+          map.current.easeTo({
+            center: coords,
+            zoom: Math.max(map.current.getZoom(), 4.0),
+            duration: 800
+          });
+        }
       }
     } catch {
       // style pending
@@ -1414,14 +1596,14 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
       <div style={{ flex: 1, position: 'relative', minHeight: '380px' }}>
         <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 
-        {/* Top-Left Telemetry HUD */}
+        {/* Top-Left Oceanographic Status Banner */}
         <div style={{
           position: 'absolute',
-          top: '10px',
-          left: '10px',
+          top: '12px',
+          left: '12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '5px',
+          gap: '6px',
           pointerEvents: 'none',
           zIndex: 20
         }}>
@@ -1429,58 +1611,44 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'rgba(15, 23, 42, 0.92)',
-            backdropFilter: 'blur(8px)',
-            padding: '5px 10px',
-            border: '1px solid #334155',
+            background: 'rgba(13, 17, 23, 0.92)',
+            backdropFilter: 'blur(10px)',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            border: '1px solid #21262d',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
             pointerEvents: 'auto'
           }}>
-            <Compass size={13} color="#38bdf8" />
-            <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'monospace', color: '#f8fafc' }}>
-              NCPOR AMIP // CANONICAL H3 EXPEDITION MESH
+            <Compass size={14} color="#38bdf8" />
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#f0f6fc', letterSpacing: '0.2px' }}>
+              ISE-44 Polar Navigation Mesh
             </span>
-            <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '1px 6px', border: '1px solid #0284c7', fontWeight: 700 }}>
-              {authenticH3GeoJSON.features.length.toLocaleString()} H3 CELLS (RES-5) // SIC FILL (RES-4)
-            </span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(15, 23, 42, 0.92)',
-            backdropFilter: 'blur(8px)',
-            padding: '4px 8px',
-            border: '1px solid #334155',
-            pointerEvents: 'auto'
-          }}>
-            <Radio size={11} color="#22c55e" />
-            <span style={{ fontSize: '10px', color: '#cbd5e1', fontFamily: 'monospace' }}>
-              TIME: <strong style={{ color: '#38bdf8' }}>T+{sliderDay}d ({currentHz})</strong> | ACTIVE: <strong style={{ color: STABLE_ROUTE_COLORS[activeRouteId] }}>{(selectedRoute?.objective || activeRouteId).toUpperCase()}</strong> | TRACKED BERGS: <strong style={{ color: '#f97316' }}>{icebergsList.length}</strong>
+            <span style={{ fontSize: '10px', color: '#8b949e', borderLeft: '1px solid #30363d', paddingLeft: '8px' }}>
+              Day T+{sliderDay} ({currentHz}) · {icebergsList.length} Tracked Icebergs
             </span>
           </div>
 
           {hoveredCellData && (
             <div style={{
-              background: 'rgba(15, 23, 42, 0.94)',
-              backdropFilter: 'blur(8px)',
-              padding: '3px 8px',
-              border: '1px solid #0284c7',
-              fontSize: '9.5px',
-              fontFamily: 'monospace',
-              color: '#38bdf8',
+              background: 'rgba(13, 17, 23, 0.92)',
+              backdropFilter: 'blur(10px)',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              border: '1px solid #30363d',
+              fontSize: '10px',
+              color: '#8b949e',
               pointerEvents: 'auto'
             }}>
-              HOVERED: <strong style={{ color: '#ffffff' }}>{hoveredCellData.displayId}</strong> | SIC: <strong>{hoveredCellData.sic_pct ?? 0}%</strong> | DEPTH: <strong>{hoveredCellData.depth?.toFixed(0) ?? 3400}m</strong>
+              Cell <strong style={{ color: '#f0f6fc', fontFamily: 'monospace' }}>{hoveredCellData.displayId}</strong> · SIC: <strong style={{ color: '#38bdf8' }}>{hoveredCellData.sic_pct ?? 0}%</strong> · Depth: <strong style={{ color: '#f0f6fc' }}>{hoveredCellData.depth?.toFixed(0) ?? 3400}m</strong>
             </div>
           )}
         </div>
 
-        {/* Route Selector & Individual Toggle Panel */}
+        {/* Route Selector & Individual Visibility Toggles */}
         <div style={{
           position: 'absolute',
-          top: '75px',
-          left: '10px',
+          top: '60px',
+          left: '12px',
           display: 'flex',
           flexDirection: 'column',
           gap: '6px',
@@ -1488,20 +1656,25 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           zIndex: 20
         }}>
           <div style={{
-            background: 'rgba(8, 12, 22, 0.88)',
+            background: 'rgba(13, 17, 23, 0.94)',
             backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '6px',
-            padding: '6px',
-            minWidth: '276px'
+            border: '1px solid #21262d',
+            borderRadius: '8px',
+            padding: '10px',
+            minWidth: '280px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
           }}>
-            {/* Header */}
-            <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', padding: '2px 4px 6px', textTransform: 'uppercase' }}>
-              Routes — click to select, eye to show/hide
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #21262d' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#f0f6fc', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                Voyage Alternatives
+              </span>
+              <span style={{ fontSize: '9.5px', color: '#8b949e' }}>
+                5 Corridors
+              </span>
             </div>
 
             {/* Route rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {routes.map((r) => {
                 const isSelected = r.id === activeRouteId;
                 const isVisible = enabledRoutes[r.id] !== false;
@@ -1518,24 +1691,29 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      padding: '6px 8px',
-                      borderRadius: '4px',
-                      borderLeft: `3px solid ${isVisible ? color : 'rgba(255,255,255,0.12)'}`,
-                      background: isSelected
-                        ? `${color}18`
-                        : 'transparent',
+                      padding: '7px 10px',
+                      borderRadius: '5px',
+                      borderLeft: `3px solid ${color}`,
+                      background: isSelected ? 'rgba(56, 189, 248, 0.10)' : 'rgba(255, 255, 255, 0.02)',
+                      border: isSelected ? `1px solid ${color}66` : '1px solid transparent',
                       cursor: 'pointer',
-                      transition: 'background 0.15s ease',
-                      opacity: isVisible ? 1.0 : 0.4
+                      transition: 'all 0.15s ease',
+                      opacity: isVisible ? 1.0 : 0.40
                     }}
                   >
-                    {/* Route name + stats */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? '#fff' : 'rgba(255,255,255,0.75)', lineHeight: 1 }}>
-                        {(r.objective || r.id).replace('_', ' ')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: isSelected ? 700 : 600, color: isSelected ? '#ffffff' : '#c9d1d9' }}>
+                          {(r.objective || r.id).replace('_', ' ')}
+                        </span>
+                        {isSelected && (
+                          <span style={{ fontSize: '8.5px', background: color, color: '#090d16', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                            ACTIVE
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.38)', marginTop: '2px' }}>
-                        {sailDays.toFixed(1)}d sailing · {(r.durationDays ?? 0).toFixed(1)}d total · {(r.estimatedFuelMT || 0).toFixed(0)} MT
+                      <div style={{ fontSize: '10px', color: '#8b949e', marginTop: '2px' }}>
+                        {sailDays.toFixed(1)}d sail · {(r.durationDays ?? 0).toFixed(1)}d total · {(r.estimatedFuelMT || 0).toFixed(0)} MT
                       </div>
                     </div>
 
@@ -1544,26 +1722,28 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                       onClick={(ev) => toggleRouteVisibility(r.id, ev)}
                       title={isVisible ? `Hide ${r.name}` : `Show ${r.name}`}
                       style={{
-                        background: 'transparent',
-                        border: 'none',
+                        background: isVisible ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                        border: '1px solid #30363d',
+                        borderRadius: '3px',
                         cursor: 'pointer',
-                        padding: '2px',
+                        padding: '3px 6px',
                         display: 'flex',
                         alignItems: 'center',
-                        color: isVisible ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)',
-                        flexShrink: 0
+                        color: isVisible ? '#f0f6fc' : '#484f58',
+                        flexShrink: 0,
+                        transition: 'all 0.12s ease'
                       }}
                     >
-                      {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                      {isVisible ? <Eye size={13} color={color} /> : <EyeOff size={13} />}
                     </button>
                   </div>
                 );
               })}
             </div>
 
-            {/* Selected Route quick metrics */}
+            {/* Selected Route summary metrics */}
             {selectedRoute && (
-              <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px 8px' }}>
+              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #21262d', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px 8px' }}>
                 {[
                   { label: 'Distance', value: `${(selectedRoute.distanceNM || 0).toLocaleString()} NM` },
                   { label: 'Sailing', value: `${((selectedRoute as any).sailingDays ?? selectedRoute.transitDays ?? 0).toFixed(1)} d` },
@@ -1573,17 +1753,14 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                   { label: 'Risk', value: `${((selectedRoute.meanRisk || 0) * 100).toFixed(0)}%` },
                 ].map(({ label, value }) => (
                   <div key={label}>
-                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginTop: '1px' }}>{value}</div>
+                    <div style={{ fontSize: '9px', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#f0f6fc', marginTop: '1px' }}>{value}</div>
                   </div>
                 ))}
               </div>
             )}
           </div>
         </div>
-
-
-
 
         {/* Bottom-Left Vertical SIC Legend & Source Label */}
         <div style={{
@@ -1596,31 +1773,31 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
           pointerEvents: 'auto',
           zIndex: 20
         }}>
-          {/* SIC Legend (Section 24) */}
+          {/* SIC Legend */}
           <div style={{
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(13, 17, 23, 0.90)',
             backdropFilter: 'blur(8px)',
-            border: '1px solid #334155',
+            border: '1px solid #21262d',
+            borderRadius: '6px',
             padding: '8px 12px',
-            fontFamily: 'sans-serif',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
             fontSize: '11px',
-            color: '#ffffff',
+            color: '#f0f6fc',
             minWidth: '170px'
           }}>
-            <div style={{ fontWeight: 800, fontSize: '10px', letterSpacing: '0.5px', marginBottom: '6px', color: '#94a3b8' }}>
-              SEA ICE CONCENTRATION (SIC)
+            <div style={{ fontWeight: 700, fontSize: '10px', letterSpacing: '0.4px', marginBottom: '6px', color: '#8b949e', textTransform: 'uppercase' }}>
+              Sea Ice Concentration
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {/* Vertical Color Gradient Bar */}
               <div style={{
-                width: '12px',
+                width: '10px',
                 height: '80px',
                 borderRadius: '2px',
                 background: 'linear-gradient(to top, #0b1d3a 0%, #1e4d7b 5%, #2e7d9e 15%, #4a9bc7 30%, #6baed6 50%, #9ecae1 70%, #c6dbef 85%, #e6f2ff 95%, #ffffff 100%)',
-                border: '1px solid rgba(255,255,255,0.2)'
+                border: '1px solid rgba(255,255,255,0.15)'
               }} />
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '80px', fontSize: '9.5px' }}>
-                <div>100% Solid Ice</div>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '80px', fontSize: '9.5px', color: '#8b949e' }}>
+                <div>100% Fast Ice</div>
                 <div>75% Dense Pack</div>
                 <div>50% Moderate Pack</div>
                 <div>25% Marginal Ice</div>
@@ -1629,27 +1806,24 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             </div>
           </div>
 
-          {/* AMIP POC Source Label (Section 25) */}
+          {/* AMIP Source Label */}
           <div style={{
-            background: 'rgba(15, 23, 42, 0.90)',
+            background: 'rgba(13, 17, 23, 0.90)',
             backdropFilter: 'blur(8px)',
-            border: '1px solid #334155',
+            border: '1px solid #21262d',
+            borderRadius: '6px',
             padding: '6px 10px',
-            fontSize: '9px',
-            fontFamily: 'monospace',
-            color: '#94a3b8',
+            fontSize: '9.5px',
+            color: '#8b949e',
             lineHeight: '1.4'
           }}>
-            <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '2px' }}>AMIP POC DATA</div>
-            <div>SIC: Historical-Trend Synthetic (SYNTHETIC_POC)</div>
-            <div>Icebergs: Backend tracked dataset (73 active)</div>
-            <div>Routing: AMIP H3 Time-Dependent Router</div>
-            <div>Vessel: ORV Sagar Kanya</div>
-            <div>Fuel: Model Estimate (433 m³ bunker ref)</div>
+            <div style={{ fontWeight: 700, color: '#38bdf8', marginBottom: '2px' }}>AMIP Polar Model</div>
+            <div>Vessel: ORV Sagar Kanya (ISE-44)</div>
+            <div>Bunker: 433 m³ (368 MT capacity)</div>
           </div>
         </div>
 
-        {/* Dedicated Inspector Side Panel (Section 21: 320px, #0f172a background) */}
+        {/* Dedicated Inspector Side Panel */}
         {activeInspector && (
           <div style={{
             position: 'absolute',
@@ -1657,27 +1831,28 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             right: '12px',
             bottom: '12px',
             width: '320px',
-            background: '#0f172a',
-            border: '1.5px solid #38bdf8',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.85)',
+            background: '#0d1117',
+            border: '1px solid #30363d',
+            borderRadius: '8px',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.65)',
             zIndex: 40,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            fontFamily: 'monospace',
-            color: '#f8fafc'
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            color: '#f0f6fc'
           }}>
             {/* Inspector Header */}
             <div style={{
-              padding: '10px 12px',
-              background: '#1e293b',
-              borderBottom: '1px solid #334155',
+              padding: '10px 14px',
+              background: '#161b22',
+              borderBottom: '1px solid #21262d',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '0.5px' }}>
-                {activeInspector === 'cell' ? 'H3 CELL INSPECTOR' : activeInspector === 'iceberg' ? 'ICEBERG INSPECTOR' : 'ROUTE SEGMENT INSPECTOR'}
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#f0f6fc', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                {activeInspector === 'cell' ? 'H3 Cell Analysis' : activeInspector === 'iceberg' ? 'Iceberg Telemetry' : 'Segment Operational Profile'}
               </span>
               <button
                 onClick={() => {
@@ -1688,9 +1863,11 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: '#8b949e',
                   cursor: 'pointer',
-                  padding: '2px'
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
               >
                 <X size={15} />
@@ -1698,76 +1875,74 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
             </div>
 
             {/* Inspector Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '10px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '11px' }}>
               
               {/* 1. H3 CELL INSPECTOR */}
               {activeInspector === 'cell' && selectedH3Cell && (
                 <>
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>IDENTITY</div>
-                    <div>H3 ID: <strong style={{ color: '#38bdf8' }}>{selectedH3Cell.id}</strong></div>
-                    <div>COORDS: {Math.abs(selectedH3Cell.properties.lat ?? 0).toFixed(4)}°S, {(selectedH3Cell.properties.lon ?? 0).toFixed(4)}°E</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Cell Identity</div>
+                    <div>H3 Index: <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{selectedH3Cell.id}</strong></div>
+                    <div>Coordinates: <span style={{ fontFamily: 'monospace' }}>{Math.abs(selectedH3Cell.properties.lat ?? 0).toFixed(4)}°S, {(selectedH3Cell.properties.lon ?? 0).toFixed(4)}°E</span></div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>SEA ICE (SIC)</div>
-                    <div>SIC: <strong style={{ color: '#38bdf8' }}>{((selectedH3Cell.properties.sic ?? 0) * 100).toFixed(1)}%</strong></div>
-                    <div>STATUS: <strong>{
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Sea Ice Assessment</div>
+                    <div>Concentration: <strong style={{ color: '#38bdf8' }}>{((selectedH3Cell.properties.sic ?? 0) * 100).toFixed(1)}%</strong></div>
+                    <div>Ice Regime: <strong>{
                       (selectedH3Cell.properties.sic ?? 0) === 0 ? 'Open Water'
                       : (selectedH3Cell.properties.sic ?? 0) < 0.15 ? 'Marginal Ice Zone'
                       : (selectedH3Cell.properties.sic ?? 0) < 0.50 ? 'Moderate Pack Ice'
                       : (selectedH3Cell.properties.sic ?? 0) < 0.80 ? 'Dense Pack Ice'
-                      : 'Solid Ice / Fast Ice'
+                      : 'Fast Ice'
                     }</strong></div>
-                    <div>SOURCE: Historical-Trend Synthetic POC</div>
-                    <div>OP LIMIT: 15.0% (Configured Operational Limit)</div>
+                    <div>Limit: 15.0% SIC (Vessel Operational Threshold)</div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>GEOGRAPHY</div>
-                    <div>NAVIGABLE: <strong style={{ color: selectedH3Cell.properties.is_land ? '#ef4444' : '#22c55e' }}>
-                      {selectedH3Cell.properties.is_land ? 'No (Land Mask)' : (selectedH3Cell.properties.sic ?? 0) > 0.15 ? 'Operational Constraint (SIC > 15%)' : 'Yes (Open Water)'}
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Navigational Clearance</div>
+                    <div>Navigable: <strong style={{ color: selectedH3Cell.properties.is_land ? '#ef4444' : '#22c55e' }}>
+                      {selectedH3Cell.properties.is_land ? 'No (Land Mass)' : (selectedH3Cell.properties.sic ?? 0) > 0.15 ? 'Ice Constrained (SIC > 15%)' : 'Yes (Open Water)'}
                     </strong></div>
-                    <div>DEPTH: {selectedH3Cell.properties.depth?.toFixed(1) ?? '3400.0'} m</div>
-                    <div>UNDER-KEEL: {selectedH3Cell.properties.under_keel_clearance?.toFixed(1) ?? '3394.4'} m</div>
+                    <div>Depth: {selectedH3Cell.properties.depth?.toFixed(1) ?? '3400.0'} m</div>
+                    <div>Under-Keel Clearance: {selectedH3Cell.properties.under_keel_clearance?.toFixed(1) ?? '3394.4'} m</div>
                   </div>
 
                   {/* Collapsible Ocean Physics */}
-                  <div style={{ border: '1px solid #334155' }}>
+                  <div style={{ border: '1px solid #21262d', borderRadius: '5px', overflow: 'hidden' }}>
                     <div
                       onClick={() => toggleSection('ocean')}
-                      style={{ padding: '6px 8px', background: '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      style={{ padding: '8px 10px', background: '#161b22', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                      <span style={{ color: '#38bdf8', fontWeight: 800 }}>OCEAN & ATMOSPHERIC PHYSICS</span>
+                      <span style={{ color: '#f0f6fc', fontWeight: 600, fontSize: '10.5px' }}>Oceanographic Metocean Data</span>
                       {expandedSections.ocean ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </div>
                     {expandedSections.ocean && (
-                      <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', background: '#0f172a' }}>
-                        <div>WAVES: {selectedH3Cell.properties.wave_height?.toFixed(2) ?? '2.80'} m (Period: {selectedH3Cell.properties.wave_period?.toFixed(1) ?? '8.5'}s, Dir: {selectedH3Cell.properties.wave_direction?.toFixed(0) ?? '270'}°)</div>
-                        <div>WINDS: {selectedH3Cell.properties.wind_speed?.toFixed(2) ?? '8.50'} m/s (Dir: {selectedH3Cell.properties.wind_direction?.toFixed(0) ?? '225'}°)</div>
-                        <div>CURRENT: {selectedH3Cell.properties.current_magnitude?.toFixed(3) ?? '0.180'} m/s (Dir: {selectedH3Cell.properties.current_direction?.toFixed(0) ?? '240'}°)</div>
-                        <div>ICEBERGS: {selectedH3Cell.properties.iceberg_count ?? 0} bergs (Hazard: {(selectedH3Cell.properties.iceberg_hazard ?? 0).toFixed(4)})</div>
+                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', background: '#0d1117', fontSize: '10.5px', color: '#c9d1d9' }}>
+                        <div>Waves: {selectedH3Cell.properties.wave_height?.toFixed(2) ?? '2.80'} m (Dir: {selectedH3Cell.properties.wave_direction?.toFixed(0) ?? '270'}°)</div>
+                        <div>Wind: {selectedH3Cell.properties.wind_speed?.toFixed(2) ?? '8.50'} m/s (Dir: {selectedH3Cell.properties.wind_direction?.toFixed(0) ?? '225'}°)</div>
+                        <div>Current: {selectedH3Cell.properties.current_magnitude?.toFixed(3) ?? '0.180'} m/s (Dir: {selectedH3Cell.properties.current_direction?.toFixed(0) ?? '240'}°)</div>
+                        <div>Icebergs: {selectedH3Cell.properties.iceberg_count ?? 0} in proximity</div>
                       </div>
                     )}
                   </div>
 
                   {/* Collapsible Risk Components */}
-                  <div style={{ border: '1px solid #334155' }}>
+                  <div style={{ border: '1px solid #21262d', borderRadius: '5px', overflow: 'hidden' }}>
                     <div
                       onClick={() => toggleSection('risk')}
-                      style={{ padding: '6px 8px', background: '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      style={{ padding: '8px 10px', background: '#161b22', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                      <span style={{ color: '#22c55e', fontWeight: 800 }}>RISK DECOMPOSITION</span>
+                      <span style={{ color: '#f0f6fc', fontWeight: 600, fontSize: '10.5px' }}>Environmental Risk Breakdown</span>
                       {expandedSections.risk ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </div>
                     {expandedSections.risk && (
-                      <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '3px', background: '#0f172a' }}>
-                        <div>COMPOSITE RISK: <strong style={{ color: (selectedH3Cell.properties.composite_risk ?? 0) > 0.3 ? '#ef4444' : '#22c55e' }}>{((selectedH3Cell.properties.composite_risk ?? 0.12) * 100).toFixed(1)}%</strong></div>
-                        <div>SIC RISK: {((selectedH3Cell.properties.sic_risk ?? 0.0) * 100).toFixed(1)}%</div>
-                        <div>WAVE RISK: {((selectedH3Cell.properties.wave_risk ?? 0.15) * 100).toFixed(1)}%</div>
-                        <div>WIND RISK: {((selectedH3Cell.properties.wind_risk ?? 0.10) * 100).toFixed(1)}%</div>
-                        <div>ICEBERG RISK: {((selectedH3Cell.properties.iceberg_risk ?? 0.0) * 100).toFixed(1)}%</div>
-                        <div>HARD BLOCKED: {selectedH3Cell.properties.hard_blocked ? 'YES' : 'NO'}</div>
+                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', background: '#0d1117', fontSize: '10.5px', color: '#c9d1d9' }}>
+                        <div>Composite Risk: <strong style={{ color: (selectedH3Cell.properties.composite_risk ?? 0) > 0.3 ? '#ef4444' : '#22c55e' }}>{((selectedH3Cell.properties.composite_risk ?? 0.12) * 100).toFixed(1)}%</strong></div>
+                        <div>Sea-Ice Weight: {((selectedH3Cell.properties.sic_risk ?? 0.0) * 100).toFixed(1)}%</div>
+                        <div>Wave Weight: {((selectedH3Cell.properties.wave_risk ?? 0.15) * 100).toFixed(1)}%</div>
+                        <div>Wind Weight: {((selectedH3Cell.properties.wind_risk ?? 0.10) * 100).toFixed(1)}%</div>
+                        <div>Iceberg Weight: {((selectedH3Cell.properties.iceberg_risk ?? 0.0) * 100).toFixed(1)}%</div>
                       </div>
                     )}
                   </div>
@@ -1777,28 +1952,32 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
               {/* 2. ICEBERG INSPECTOR */}
               {activeInspector === 'iceberg' && selectedIceberg && (
                 <>
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>ICEBERG IDENTITY</div>
-                    <div>ID: <strong style={{ color: '#f97316' }}>{selectedIceberg.id}</strong></div>
-                    <div>COORDS: {selectedIceberg.currentCoords ? `${Math.abs(selectedIceberg.currentCoords[1]).toFixed(4)}°S, ${selectedIceberg.currentCoords[0].toFixed(4)}°E` : 'Active'}</div>
-                    <div>SOURCE: {selectedIceberg.source || 'USNIC / NIC Antarctic Dataset'}</div>
-                    <div>OBSERVATION: 2024-01-01T00:00:00Z</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase' }}>Target Classification</span>
+                      <span style={{ color: '#f97316', fontSize: '9px', fontWeight: 700, fontFamily: 'monospace', background: 'rgba(249,115,22,0.15)', padding: '1px 5px', borderRadius: '3px', border: '1px solid rgba(249,115,22,0.4)' }}>
+                        DAY T+{sliderDay}
+                      </span>
+                    </div>
+                    <div>Target ID: <strong style={{ color: '#f97316', fontFamily: 'monospace' }}>{selectedIceberg.id}</strong></div>
+                    <div>Live Position: <span style={{ fontFamily: 'monospace', color: '#f0f6fc' }}>{activeIcebergLive ? `${Math.abs(activeIcebergLive.coords[1]).toFixed(4)}°S, ${activeIcebergLive.coords[0].toFixed(4)}°E` : 'Active'}</span></div>
+                    <div>Source: {selectedIceberg.source || 'NIC Antarctic Tracked Database'}</div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>DIMENSIONS & VELOCITY</div>
-                    <div>LENGTH: {selectedIceberg.latestObservation?.length_km ?? 15} km</div>
-                    <div>WIDTH: {selectedIceberg.latestObservation?.width_km ?? 8} km</div>
-                    <div>SURFACE AREA: {selectedIceberg.latestObservation?.area_sqkm ?? 120} km²</div>
-                    <div>DRIFT SPEED: {selectedIceberg.speed_knots ?? 0.24} kt</div>
-                    <div>LOCAL DEPTH: {selectedIceberg.depth_m ?? 3200} m</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Kinematics & Drift</div>
+                    <div>Cumulative Drift: <strong style={{ color: '#38bdf8' }}>{activeIcebergLive?.driftedNM ?? 0.0} NM</strong> <span style={{ color: '#8b949e', fontSize: '9.5px' }}>(from T+0)</span></div>
+                    <div>Drift Velocity: <strong>{activeIcebergLive?.speed ?? 0.24} kt</strong></div>
+                    <div>Water Depth: <strong>{activeIcebergLive?.depth ?? 3200} m</strong></div>
+                    <div>Dimensions: {(selectedIceberg.latestObservation?.length_km ?? 15).toFixed(0)} × {(selectedIceberg.latestObservation?.width_km ?? 8).toFixed(0)} km</div>
+                    <div>Surface Area: {(selectedIceberg.latestObservation?.area_sqkm ?? 120).toFixed(0)} km²</div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>TRAJECTORY HORIZON</div>
-                    <div>PREDICTED HORIZON: 90 Days</div>
-                    <div>SAMPLING: 361 waypoints at 6-hour timesteps</div>
-                    <div>STATUS: {selectedIceberg.status || 'ACTIVE_DRIFT'}</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Trajectory & Marine Hazard</div>
+                    <div>Horizon: <strong>90-Day High-Resolution Drift</strong></div>
+                    <div>Drift Model Status: <span style={{ color: '#22c55e', fontWeight: 700 }}>{activeIcebergLive?.status || 'ACTIVE_DRIFT'}</span></div>
+                    <div>Route Hazard: <span style={{ color: '#f97316', fontWeight: 600 }}>Tracked along Southern Ocean Route Corridor</span></div>
                   </div>
                 </>
               )}
@@ -1806,35 +1985,29 @@ export const AntarcticMap: React.FC<AntarcticMapProps> = ({
               {/* 3. ROUTE SEGMENT INSPECTOR */}
               {activeInspector === 'segment' && selectedSegment && (
                 <>
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>GRAPH TRANSITION</div>
-                    <div>FROM H3: <strong style={{ color: '#38bdf8' }}>{selectedSegment.from_cell || selectedSegment.from_h3 || '85ad3617fffffff'}</strong></div>
-                    <div>TO H3: <strong style={{ color: '#38bdf8' }}>{selectedSegment.to_cell || selectedSegment.to_h3 || '85bc6117fffffff'}</strong></div>
-                    <div>DISTANCE: {(selectedSegment.distance_nm ?? selectedSegment.distanceNM ?? 0).toFixed(2)} NM</div>
-                    <div>HEADING: {(selectedSegment.heading_deg ?? 0).toFixed(1)}° (0°=N, 90°=E)</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Segment Navigation</div>
+                    <div>From Cell: <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{selectedSegment.from_cell || selectedSegment.from_h3 || '85ad3617fffffff'}</strong></div>
+                    <div>To Cell: <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{selectedSegment.to_cell || selectedSegment.to_h3 || '85bc6117fffffff'}</strong></div>
+                    <div>Leg Distance: {(selectedSegment.distance_nm ?? selectedSegment.distanceNM ?? 0).toFixed(2)} NM</div>
+                    <div>True Heading: {(selectedSegment.heading_deg ?? 0).toFixed(1)}°</div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>PROPULSION & SOG RESOLUTION</div>
-                    <div>VESSEL STW: <strong>{(selectedSegment.stw_kt ?? selectedSegment.vessel_stw_kt ?? 9.0).toFixed(2)} kt</strong> (Speed Through Water)</div>
-                    <div>CURRENT ALONG-TRACK: <strong>{(selectedSegment.current_along_track_kt ?? 0.0).toFixed(2)} kt</strong></div>
-                    <div>VESSEL SOG: <strong style={{ color: '#38bdf8' }}>{(selectedSegment.sog_kt ?? selectedSegment.effective_speed_kt ?? 9.0).toFixed(2)} kt</strong> (Speed Over Ground)</div>
-                    <div>DURATION: {(selectedSegment.duration_hours ?? selectedSegment.segment_duration_hours ?? 0).toFixed(2)} hours</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Propulsion & Effective Speed</div>
+                    <div>Engine STW: <strong>{(selectedSegment.stw_kt ?? selectedSegment.vessel_stw_kt ?? 9.0).toFixed(2)} kt</strong></div>
+                    <div>Ocean Current Along-Track: <strong>{(selectedSegment.current_along_track_kt ?? 0.0).toFixed(2)} kt</strong></div>
+                    <div>Resulting SOG: <strong style={{ color: '#38bdf8' }}>{(selectedSegment.sog_kt ?? selectedSegment.effective_speed_kt ?? 9.0).toFixed(2)} kt</strong></div>
+                    <div>Transit Duration: {(selectedSegment.duration_hours ?? selectedSegment.segment_duration_hours ?? 0).toFixed(2)} hours</div>
                   </div>
 
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>ENVIRONMENT & CLEARANCE</div>
+                  <div style={{ background: '#161b22', padding: '10px', borderRadius: '5px', border: '1px solid #21262d' }}>
+                    <div style={{ color: '#8b949e', fontSize: '9.5px', textTransform: 'uppercase', marginBottom: '4px' }}>Metocean & Fuel Burn</div>
                     <div>SIC: {(selectedSegment.sic_pct ?? selectedSegment.sic_percent ?? 0).toFixed(1)}%</div>
-                    <div>WAVE HEIGHT: {(selectedSegment.wave_height_m ?? 2.8).toFixed(2)} m</div>
-                    <div>WIND SPEED: {(selectedSegment.wind_speed_kt ?? selectedSegment.wind_speed_ms ?? 8.5).toFixed(1)} kt</div>
-                    <div>DEPTH: {(selectedSegment.depth_m ?? 3500).toFixed(0)} m (UKC: {((selectedSegment.depth_m ?? 3500) - 5.6).toFixed(0)} m)</div>
-                  </div>
-
-                  <div style={{ background: '#1e293b', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ color: '#94a3b8', fontSize: '9px', marginBottom: '2px' }}>RISK & ECONOMICS</div>
-                    <div>SEGMENT RISK: <strong style={{ color: (selectedSegment.risk_composite || selectedSegment.risk || 0) > 0.3 ? '#ef4444' : '#22c55e' }}>{(((selectedSegment.risk_composite ?? selectedSegment.risk ?? 0.1)) * 100).toFixed(1)}%</strong></div>
-                    <div>ESTIMATED FUEL: <strong style={{ color: '#f8fafc' }}>{(selectedSegment.fuel_burn_mt ?? selectedSegment.fuel_mt ?? 0).toFixed(2)} MT</strong></div>
-                    <div>OBJECTIVE COST: {(selectedSegment.segment_cost ?? selectedSegment.objective_cost ?? 0).toFixed(2)}</div>
+                    <div>Wave Height: {(selectedSegment.wave_height_m ?? 2.8).toFixed(2)} m</div>
+                    <div>Wind Speed: {(selectedSegment.wind_speed_kt ?? selectedSegment.wind_speed_ms ?? 8.5).toFixed(1)} kt</div>
+                    <div>Fuel Consumption: <strong style={{ color: '#f0f6fc' }}>{(selectedSegment.fuel_burn_mt ?? selectedSegment.fuel_mt ?? 0).toFixed(2)} MT</strong></div>
+                    <div>Segment Risk: <strong style={{ color: (selectedSegment.risk_composite || selectedSegment.risk || 0) > 0.3 ? '#ef4444' : '#22c55e' }}>{(((selectedSegment.risk_composite ?? selectedSegment.risk ?? 0.1)) * 100).toFixed(1)}%</strong></div>
                   </div>
                 </>
               )}
