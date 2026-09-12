@@ -6,6 +6,7 @@ interface PathRiskVisualizerProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectRoute: (id: string) => void;
+  theme?: 'dark' | 'light';
 }
 
 const OPERATIONAL_STRATEGY: Record<string, string> = {
@@ -27,12 +28,14 @@ const COLORS: Record<string, string> = {
 export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
   isOpen,
   onClose,
-  onSelectRoute
+  onSelectRoute,
+  theme = 'dark'
 }) => {
   const { routes, selectedRouteId, enabledRoutes, toggleRouteEnabled } = useMission();
 
   if (!isOpen) return null;
 
+  const isLight = theme === 'light';
   const orderedIds = ['safest', 'balanced', 'shortest', 'fuel_efficient', 'fastest'];
   const orderedRoutes = orderedIds.map(id => routes.find(r => r.id === id)).filter(Boolean) as typeof routes;
 
@@ -46,14 +49,18 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
         maxWidth: 'calc(100vw - 24px)',
         bottom: '60px',
         zIndex: 55,
-        background: '#0d1117',
-        border: '1px solid #30363d',
+        background: isLight ? 'rgba(255, 255, 255, 0.96)' : '#0d1117',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: isLight ? '1px solid #bfdbfe' : '1px solid #30363d',
         borderRadius: '8px',
-        boxShadow: '0 16px 48px rgba(0, 0, 0, 0.7)',
+        boxShadow: isLight
+          ? '0 16px 48px rgba(14, 116, 144, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06)'
+          : '0 16px 48px rgba(0, 0, 0, 0.7)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        color: '#f0f6fc',
+        color: isLight ? '#0f172a' : '#f0f6fc',
         fontFamily: 'system-ui, -apple-system, sans-serif'
       }}
     >
@@ -61,20 +68,20 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
       <div
         style={{
           padding: '12px 16px',
-          background: '#161b22',
-          borderBottom: '1px solid #21262d',
+          background: isLight ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)' : '#161b22',
+          borderBottom: isLight ? '1px solid #bfdbfe' : '1px solid #21262d',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Shield size={18} color="#38bdf8" />
+          <Shield size={18} color={isLight ? '#0284c7' : '#38bdf8'} />
           <div>
-            <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#f0f6fc', letterSpacing: '0.2px' }}>
+            <div style={{ fontSize: '13.5px', fontWeight: 700, color: isLight ? '#0f172a' : '#f0f6fc', letterSpacing: '0.2px' }}>
               Multi-Criteria Route Risk & Performance Assessment
             </div>
-            <div style={{ fontSize: '11px', color: '#8b949e' }}>
+            <div style={{ fontSize: '11px', color: isLight ? '#64748b' : '#8b949e' }}>
               NCPOR Polar Oceanographic & Environmental Risk Model
             </div>
           </div>
@@ -82,15 +89,15 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
         <button
           onClick={onClose}
           title="Close"
-          style={{ background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'transparent', border: 'none', color: isLight ? '#64748b' : '#8b949e', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
         >
           <X size={20} />
         </button>
       </div>
 
       {/* Methodology note */}
-      <div style={{ padding: '8px 14px', background: '#161b2288', borderBottom: '1px solid #21262d', fontSize: '10.5px', color: '#8b949e' }}>
-        <strong style={{ color: '#f0f6fc' }}>Assessment Model: </strong>
+      <div style={{ padding: '8px 14px', background: isLight ? '#f0f9ff' : '#161b2288', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #21262d', fontSize: '10.5px', color: isLight ? '#475569' : '#8b949e' }}>
+        <strong style={{ color: isLight ? '#0f172a' : '#f0f6fc' }}>Assessment Model: </strong>
         Weighted multi-criteria index (35% Sea-Ice Concentration, 30% Iceberg Drift Density, 20% Significant Wave Height, 15% Bathymetric Clearance).
       </div>
 
@@ -113,8 +120,10 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
               key={id}
               onClick={() => onSelectRoute(id)}
               style={{
-                background: isSelected ? 'rgba(56, 189, 248, 0.08)' : '#161b22',
-                border: `1px solid ${isSelected ? color : '#21262d'}`,
+                background: isSelected
+                  ? (isLight ? '#eff6ff' : 'rgba(56, 189, 248, 0.08)')
+                  : (isLight ? '#f8fafc' : '#161b22'),
+                border: `1px solid ${isSelected ? color : (isLight ? '#e2e8f0' : '#21262d')}`,
                 borderLeft: `4px solid ${color}`,
                 borderRadius: '6px',
                 padding: '12px',
@@ -127,11 +136,11 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
-                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: isSelected ? (isLight ? '#0284c7' : '#ffffff') : (isLight ? '#0f172a' : '#e2e8f0') }}>
                     {r.name}
                   </span>
                   {isSelected && (
-                    <span style={{ fontSize: '8.5px', background: color, color: '#090d16', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                    <span style={{ fontSize: '8.5px', background: color, color: '#ffffff', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
                       ACTIVE
                     </span>
                   )}
@@ -148,9 +157,11 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
                     fontSize: '10px',
                     fontWeight: 600,
                     padding: '3px 8px',
-                    background: isVisible ? 'rgba(56, 189, 248, 0.12)' : '#21262d',
-                    border: `1px solid ${isVisible ? '#38bdf8' : '#30363d'}`,
-                    color: isVisible ? '#38bdf8' : '#8b949e',
+                    background: isVisible
+                      ? (isLight ? 'rgba(2, 132, 199, 0.12)' : 'rgba(56, 189, 248, 0.12)')
+                      : (isLight ? '#e2e8f0' : '#21262d'),
+                    border: `1px solid ${isVisible ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#cbd5e1' : '#30363d')}`,
+                    color: isVisible ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#64748b' : '#8b949e'),
                     borderRadius: '4px',
                     cursor: 'pointer',
                     display: 'flex',
@@ -158,14 +169,14 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
                     gap: '4px'
                   }}
                 >
-                  {isVisible ? <Eye size={12} /> : <EyeOff size={12} />}
+                  {isVisible ? <Eye size={12} color={isLight ? '#0284c7' : undefined} /> : <EyeOff size={12} />}
                   <span>{isVisible ? 'Visible' : 'Hidden'}</span>
                 </button>
               </div>
 
               {/* Operational strategy summary */}
-              <div style={{ background: '#0d1117', padding: '6px 10px', borderRadius: '4px', border: '1px solid #21262d', marginBottom: '10px' }}>
-                <div style={{ fontSize: '10.5px', color: '#c9d1d9', lineHeight: '1.5' }}>
+              <div style={{ background: isLight ? '#ffffff' : '#0d1117', padding: '6px 10px', borderRadius: '4px', border: isLight ? '1px solid #e2e8f0' : '1px solid #21262d', marginBottom: '10px' }}>
+                <div style={{ fontSize: '10.5px', color: isLight ? '#334155' : '#c9d1d9', lineHeight: '1.5' }}>
                   {OPERATIONAL_STRATEGY[id] || r.explanation || 'Standard navigation corridor.'}
                 </div>
               </div>
@@ -173,17 +184,17 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
               {/* Risk bar */}
               <div style={{ marginBottom: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', marginBottom: '4px' }}>
-                  <span style={{ color: '#8b949e' }}>Environmental Exposure Index:</span>
-                  <span style={{ fontWeight: 700, color: riskPct < 22 ? '#3fb950' : riskPct < 27 ? '#f59e0b' : '#f85149' }}>
+                  <span style={{ color: isLight ? '#64748b' : '#8b949e' }}>Environmental Exposure Index:</span>
+                  <span style={{ fontWeight: 700, color: riskPct < 22 ? '#16a34a' : riskPct < 27 ? '#d97706' : '#dc2626' }}>
                     {riskPct}% mean / {maxRiskPct}% peak
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '6px', background: '#21262d', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '6px', background: isLight ? '#e2e8f0' : '#21262d', borderRadius: '3px', overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${Math.min(riskPct * 2.5, 100)}%`,
                       height: '100%',
-                      background: riskPct < 22 ? '#3fb950' : riskPct < 27 ? color : '#f85149',
+                      background: riskPct < 22 ? '#16a34a' : riskPct < 27 ? color : '#dc2626',
                       borderRadius: '3px'
                     }}
                   />
@@ -193,28 +204,28 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
               {/* Key metrics grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px 8px', fontSize: '10px' }}>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Distance</div>
-                  <div style={{ color: '#f0f6fc', fontWeight: 600 }}>{(r.distanceNM || 0).toLocaleString()} NM</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Distance</div>
+                  <div style={{ color: isLight ? '#0f172a' : '#f0f6fc', fontWeight: 600 }}>{(r.distanceNM || 0).toLocaleString()} NM</div>
                 </div>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Sailing Duration</div>
-                  <div style={{ color: '#f0f6fc', fontWeight: 600 }}>{sailingDays.toFixed(1)} days</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Sailing Duration</div>
+                  <div style={{ color: isLight ? '#0f172a' : '#f0f6fc', fontWeight: 600 }}>{sailingDays.toFixed(1)} days</div>
                 </div>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Total (incl. dwell)</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Total (incl. dwell)</div>
                   <div style={{ color: color, fontWeight: 700 }}>{(r.durationDays ?? 0).toFixed(1)} days</div>
                 </div>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Mean SOG</div>
-                  <div style={{ color: '#f0f6fc', fontWeight: 600 }}>{meanSOG.toFixed(2)} kt</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Mean SOG</div>
+                  <div style={{ color: isLight ? '#0f172a' : '#f0f6fc', fontWeight: 600 }}>{meanSOG.toFixed(2)} kt</div>
                 </div>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Engine STW</div>
-                  <div style={{ color: '#f0f6fc', fontWeight: 600 }}>{meanSTW.toFixed(2)} kt</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Engine STW</div>
+                  <div style={{ color: isLight ? '#0f172a' : '#f0f6fc', fontWeight: 600 }}>{meanSTW.toFixed(2)} kt</div>
                 </div>
                 <div>
-                  <div style={{ color: '#8b949e' }}>Estimated Bunker</div>
-                  <div style={{ color: '#f0f6fc', fontWeight: 600 }}>{(r.estimatedFuelMT || 0).toFixed(0)} MT</div>
+                  <div style={{ color: isLight ? '#64748b' : '#8b949e' }}>Estimated Bunker</div>
+                  <div style={{ color: isLight ? '#0f172a' : '#f0f6fc', fontWeight: 600 }}>{(r.estimatedFuelMT || 0).toFixed(0)} MT</div>
                 </div>
               </div>
             </div>
@@ -223,7 +234,7 @@ export const PathRiskVisualizer: React.FC<PathRiskVisualizerProps> = ({
       </div>
 
       {/* Footer note */}
-      <div style={{ padding: '10px 14px', background: '#161b22', borderTop: '1px solid #21262d', fontSize: '10px', color: '#8b949e' }}>
+      <div style={{ padding: '10px 14px', background: isLight ? '#eff6ff' : '#161b22', borderTop: isLight ? '1px solid #bfdbfe' : '1px solid #21262d', fontSize: '10px', color: isLight ? '#64748b' : '#8b949e' }}>
         SOG = Speed Over Ground (effective transit rate) · STW = Speed Through Water (engine speed) · Bunker Capacity: 368 MT · Station Dwell: 5.0 days included.
       </div>
     </div>

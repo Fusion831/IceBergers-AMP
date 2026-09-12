@@ -218,7 +218,7 @@ export const MissionSetupView: React.FC = () => {
                         border: '1.5px solid',
                         borderColor: isChecked ? '#2563eb' : 'rgba(203, 213, 225, 0.8)',
                         borderBottom: isChecked ? '3px solid #1d4ed8' : '3px solid #cbd5e1',
-                        boxShadow: isChecked ? '0 3px 0 #1d4ed8, 0 3px 6px rgba(37, 99, 235, 0.15)' : '0 2px 0 #cbd5e1, 0 2px 4px rgba(0, 0, 0, 0.04)',
+                        boxShadow: isChecked ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1d4ed8' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 0 #cbd5e1',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -289,7 +289,7 @@ export const MissionSetupView: React.FC = () => {
                       textAlign: 'left',
                       fontFamily: 'var(--font-mono)',
                       backdropFilter: 'blur(8px)',
-                      boxShadow: isSelected ? '0 3px 0 #1e3a8a, 0 4px 8px rgba(30, 58, 138, 0.28)' : '0 2px 0 #93c5fd, 0 2px 5px rgba(37, 99, 235, 0.1)'
+                      boxShadow: isSelected ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1e3a8a' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 0 #93c5fd'
                     }}
                   >
                     <div style={{ fontSize: '12px', fontWeight: 800 }}>{v.name}</div>
@@ -376,7 +376,7 @@ export const MissionSetupView: React.FC = () => {
                         fontWeight: 800,
                         cursor: 'pointer',
                         backdropFilter: 'blur(8px)',
-                        boxShadow: '0 2px 0 #93c5fd, 0 2px 5px rgba(37, 99, 235, 0.08)'
+                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 3px 0 #93c5fd'
                       }}
                     >
                       {p.label}
@@ -491,7 +491,7 @@ export const MissionSetupView: React.FC = () => {
             fontWeight: 800,
             cursor: 'pointer',
             letterSpacing: '0.03em',
-            boxShadow: '0 3px 0 #1e3a8a, 0 5px 10px rgba(30, 58, 138, 0.3)'
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 #1e3a8a'
           }}
         >
           <span>LAUNCH ANTARCTIC MAP WORKSPACE</span>

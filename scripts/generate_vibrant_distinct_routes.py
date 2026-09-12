@@ -31,11 +31,37 @@ Endurance: 45 days published
 
 import json
 import math
+import os
+import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
+
+# Ensure packages are importable
+sys.path.extend([
+    os.path.abspath("packages/core/src"),
+    os.path.abspath("packages/domain/src"),
+    os.path.abspath("packages/data_access/src"),
+    os.path.abspath("packages/models/src"),
+    os.path.abspath("packages/iceberg_physics/src"),
+    os.path.abspath("packages/risk_engine/src"),
+    os.path.abspath("packages/routing/src"),
+    os.path.abspath("packages/services/src"),
+    os.path.abspath("apps/backend/src"),
+    os.path.abspath(".")
+])
+
+from routing.amip_custom_router import (
+    _get_antarctic_land_limit_lat,
+    _spherical_slerp,
+    _centripetal_catmull_rom,
+    _apply_smooth_iceberg_avoidance,
+    _normalize_lon,
+    _shortest_lon_diff,
+    _ICEBERGS_LIST
+)
 
 # ── Mission canonical waypoints ──────────────────────────────────────────────
 CAPE_TOWN   = [18.4241, -33.9249]  # [lon, lat]
@@ -154,28 +180,66 @@ def composite_risk(sic_pct, wave_h, along_track_kt, base_risk):
 
 def generate_leg_waypoints(origin, destination, leg_idx, num_steps, lon_bias, lat_bias):
     """
-    Generate waypoints for one leg with objective-specific spatial corridor bias.
-    All biases are applied as sine-curve offsets (peak at midpoint).
+    Generate hydrodynamic, physically realistic curved maritime waypoints for each leg.
+    - Leg 1 (Cape Town -> Bharati): Great-Circle geodesic arc with subtle oceanic current-bias curvature.
+    - Leg 2 (Bharati -> Maitri): Continuous circumpolar spline gracefully rounding Enderby Land.
+    - Leg 3 (Maitri -> Cape Town): Great-Circle geodesic arc returning northward through South Atlantic.
     """
     lon1, lat1 = origin
     lon2, lat2 = destination
-    pts = []
-    for i in range(num_steps + 1):
-        frac = i / float(num_steps)
-        base_lat = lat1 + frac * (lat2 - lat1)
-        base_lon = lon1 + frac * (lon2 - lon1)
-        curve = math.sin(frac * math.pi)
-        if leg_idx == 1:
-            lon_p = base_lon + lon_bias * curve
-            lat_p = base_lat
-        elif leg_idx == 2:
-            lon_p = base_lon
-            lat_p = base_lat + lat_bias * curve
-        else:
-            lon_p = base_lon + lon_bias * curve
-            lat_p = base_lat
-        pts.append([round(lon_p, 4), round(lat_p, 4)])
-    return pts
+
+    if leg_idx == 1:
+        # Cape Town -> Bharati: Great-Circle Orthodrome bowing into Southern Ocean
+        pts = []
+        for i in range(num_steps + 1):
+            f = i / float(num_steps)
+            s_lat, s_lon = _spherical_slerp(lat1, lon1, lat2, lon2, f)
+            curve = math.sin(f * math.pi)
+            s_lon = _normalize_lon(s_lon + lon_bias * curve)
+            coast = _get_antarctic_land_limit_lat(s_lon)
+            if s_lat < -60.0 and i < num_steps:
+                s_lat = max(s_lat, coast + 0.25)
+            pts.append([round(s_lon, 4), round(s_lat, 4)])
+        pts[0] = [round(lon1, 4), round(lat1, 4)]
+        pts[-1] = [round(lon2, 4), round(lat2, 4)]
+        return pts
+
+    elif leg_idx == 2:
+        # Bharati -> Maitri: Smooth circumpolar arc skirting Enderby Land (-65.8S at 50E)
+        anchors = [
+            (lat1, lon1),
+            (-67.2, 72.5),
+            (-64.8 + lat_bias, 60.0),
+            (-64.2 + lat_bias, 48.0),  # Safe clearance north of Enderby Land
+            (-65.0 + lat_bias, 32.0),
+            (-67.5 + 0.5 * lat_bias, 20.0),
+            (lat2, lon2),
+        ]
+        spline_pts = _centripetal_catmull_rom(anchors, num_steps + 1)
+        pts = []
+        for s_lat, s_lon in spline_pts:
+            coast = _get_antarctic_land_limit_lat(s_lon)
+            safe_lat = max(s_lat, coast + 0.25) if s_lat < -60.0 else s_lat
+            pts.append([round(s_lon, 4), round(safe_lat, 4)])
+        pts[0] = [round(lon1, 4), round(lat1, 4)]
+        pts[-1] = [round(lon2, 4), round(lat2, 4)]
+        return pts
+
+    else:
+        # Maitri -> Cape Town: Great-Circle Orthodrome returning north
+        pts = []
+        for i in range(num_steps + 1):
+            f = i / float(num_steps)
+            s_lat, s_lon = _spherical_slerp(lat1, lon1, lat2, lon2, f)
+            curve = math.sin(f * math.pi)
+            s_lon = _normalize_lon(s_lon + lon_bias * curve)
+            coast = _get_antarctic_land_limit_lat(s_lon)
+            if s_lat < -60.0 and i > 0:
+                s_lat = max(s_lat, coast + 0.25)
+            pts.append([round(s_lon, 4), round(s_lat, 4)])
+        pts[0] = [round(lon1, 4), round(lat1, 4)]
+        pts[-1] = [round(lon2, 4), round(lat2, 4)]
+        return pts
 
 
 # ── Route Specifications ──────────────────────────────────────────────────────
@@ -294,6 +358,16 @@ def build_all_canonical_routes():
         leg3 = generate_leg_waypoints(MAITRI,  CAPE_TOWN, 3, num_steps, spec["leg3_lon_bias"], 0.0)
 
         raw_wps = leg1 + leg2[1:] + leg3[1:]  # 73 points, 72 intervals
+
+        # Apply smooth Gaussian iceberg avoidance and clamp against land limits
+        lat_lon_wps = [(p[1], p[0]) for p in raw_wps]
+        safe_lat_lon = _apply_smooth_iceberg_avoidance(lat_lon_wps, safety_margin_nm=24.0)
+        # Ensure exact station berths
+        safe_lat_lon[0] = (CAPE_TOWN[1], CAPE_TOWN[0])
+        safe_lat_lon[len(leg1) - 1] = (BHARATI[1], BHARATI[0])
+        safe_lat_lon[len(leg1) + len(leg2) - 2] = (MAITRI[1], MAITRI[0])
+        safe_lat_lon[-1] = (CAPE_TOWN[1], CAPE_TOWN[0])
+        raw_wps = [[round(p[1], 4), round(p[0], 4)] for p in safe_lat_lon]
 
         # Build segments
         segments = []
@@ -499,6 +573,7 @@ def build_all_canonical_routes():
             "distanceNM":       round(cum_dist, 1),
             "durationHours":    round(tot_duration_hours, 1),
             "durationDays":     round(tot_duration_days, 2),
+            "transitDays":      round(sailing_days, 2),
             "sailingHours":     round(tot_sailing_hours, 1),
             "sailingDays":      round(sailing_days, 2),
             "dwellHours":       DWELL_TOTAL_H,

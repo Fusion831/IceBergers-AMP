@@ -9,6 +9,15 @@ class RouteObjective(str, Enum):
     FUEL_EFFICIENT = "FUEL_EFFICIENT"
     BALANCED = "BALANCED"
 
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            val_norm = value.upper().replace("-", "_").replace(" ", "_")
+            for member in cls:
+                if member.value == val_norm or member.value.lower() == value.lower():
+                    return member
+        return None
+
 
 class MissionTargetType(str, Enum):
     PORT = "PORT"

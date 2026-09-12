@@ -10,6 +10,7 @@ interface RouteDetailsDrawerProps {
   routes: RouteAlternative[];
   onSelectRoute: (id: string) => void;
   onOpenRiskVisualizer?: () => void;
+  theme?: 'dark' | 'light';
 }
 
 const COLORS: Record<string, string> = {
@@ -49,10 +50,10 @@ const OPERATIONAL_PARAMS: Record<string, { summary: string; speedTarget: string;
 };
 
 // Small label row
-const Row: React.FC<{ label: string; value: string; accent?: boolean; warn?: boolean }> = ({ label, value, accent, warn }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0', borderBottom: '1px solid #161b22' }}>
-    <span style={{ fontSize: '11.5px', color: '#8b949e', fontWeight: 400 }}>{label}</span>
-    <span style={{ fontSize: '12px', fontWeight: 600, color: warn ? '#f85149' : accent ? '#ffffff' : '#c9d1d9' }}>{value}</span>
+const Row: React.FC<{ label: string; value: string; accent?: boolean; warn?: boolean; isLight?: boolean }> = ({ label, value, accent, warn, isLight }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0', borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid #161b22' }}>
+    <span style={{ fontSize: '11.5px', color: isLight ? '#475569' : '#8b949e', fontWeight: 400 }}>{label}</span>
+    <span style={{ fontSize: '12px', fontWeight: 600, color: warn ? '#dc2626' : accent ? (isLight ? '#0284c7' : '#ffffff') : (isLight ? '#0f172a' : '#c9d1d9') }}>{value}</span>
   </div>
 );
 
@@ -62,12 +63,14 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
   route,
   routes,
   onSelectRoute,
-  onOpenRiskVisualizer
+  onOpenRiskVisualizer,
+  theme = 'dark'
 }) => {
   const { enabledRoutes, toggleRouteEnabled } = useMission();
 
   if (!isOpen || !route) return null;
 
+  const isLight = theme === 'light';
   const color = COLORS[route.id] || route.color || '#3b82f6';
   const isVisible = enabledRoutes[route.id] !== false;
 
@@ -102,25 +105,38 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
         width: '380px',
         maxWidth: 'calc(100vw - 24px)',
         zIndex: 50,
-        background: '#0d1117',
-        border: '1px solid #30363d',
+        background: isLight ? 'rgba(255, 255, 255, 0.96)' : '#0d1117',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: isLight ? '1px solid #bfdbfe' : '1px solid #30363d',
         borderRadius: '8px',
-        boxShadow: '0 12px 36px rgba(0, 0, 0, 0.65)',
+        boxShadow: isLight
+          ? '0 16px 40px rgba(14, 116, 144, 0.15), 0 4px 12px rgba(0, 0, 0, 0.06)'
+          : '0 12px 36px rgba(0, 0, 0, 0.65)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        color: '#f0f6fc',
+        color: isLight ? '#0f172a' : '#f0f6fc',
         fontFamily: 'system-ui, -apple-system, sans-serif'
       }}
     >
       {/* ── Header ── */}
-      <div style={{ padding: '12px 14px', background: '#161b22', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #21262d' }}>
+      <div
+        style={{
+          padding: '12px 14px',
+          background: isLight ? 'linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)' : '#161b22',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          borderBottom: isLight ? '1px solid #bfdbfe' : '1px solid #21262d'
+        }}
+      >
         <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: isLight ? '#0f172a' : '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {route.name}
           </div>
-          <div style={{ fontSize: '10.5px', color: '#8b949e', marginTop: '1px' }}>
+          <div style={{ fontSize: '10.5px', color: isLight ? '#475569' : '#8b949e', marginTop: '1px' }}>
             Cape Town → Bharati → Maitri → Cape Town
           </div>
         </div>
@@ -130,12 +146,14 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
           onClick={(e) => { e.stopPropagation(); toggleRouteEnabled(route.id); }}
           title={isVisible ? 'Hide this route on the map' : 'Show this route on the map'}
           style={{
-            background: isVisible ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-            border: `1px solid ${isVisible ? '#38bdf8' : '#30363d'}`,
+            background: isVisible
+              ? (isLight ? 'rgba(2, 132, 199, 0.12)' : 'rgba(56, 189, 248, 0.12)')
+              : (isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.04)'),
+            border: `1px solid ${isVisible ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#cbd5e1' : '#30363d')}`,
             borderRadius: '4px',
             padding: '4px 8px',
             cursor: 'pointer',
-            color: isVisible ? '#38bdf8' : '#8b949e',
+            color: isVisible ? (isLight ? '#0284c7' : '#38bdf8') : (isLight ? '#64748b' : '#8b949e'),
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
@@ -144,17 +162,26 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
             transition: 'all 0.12s ease'
           }}
         >
-          {isVisible ? <Eye size={12} color="#38bdf8" /> : <EyeOff size={12} />}
+          {isVisible ? <Eye size={12} color={isLight ? '#0284c7' : '#38bdf8'} /> : <EyeOff size={12} />}
           <span>{isVisible ? 'Visible' : 'Hidden'}</span>
         </button>
 
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: isLight ? '#64748b' : '#8b949e', cursor: 'pointer', padding: '2px', display: 'flex' }}>
           <X size={18} />
         </button>
       </div>
 
       {/* ── Route switcher tabs ── */}
-      <div style={{ display: 'flex', padding: '6px 8px', gap: '4px', background: '#161b22', borderBottom: '1px solid #21262d', overflowX: 'auto' }}>
+      <div
+        style={{
+          display: 'flex',
+          padding: '6px 8px',
+          gap: '4px',
+          background: isLight ? '#f0f9ff' : '#161b22',
+          borderBottom: isLight ? '1px solid #bfdbfe' : '1px solid #21262d',
+          overflowX: 'auto'
+        }}
+      >
         {routes.map((r) => {
           const rc = COLORS[r.id] || '#94a3b8';
           const isCurrent = r.id === route.id;
@@ -166,9 +193,9 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
                 padding: '5px 10px',
                 fontSize: '11px',
                 fontWeight: isCurrent ? 700 : 500,
-                color: isCurrent ? '#ffffff' : '#8b949e',
-                background: isCurrent ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-                border: isCurrent ? `1px solid ${rc}88` : '1px solid transparent',
+                color: isCurrent ? (isLight ? '#0284c7' : '#ffffff') : (isLight ? '#475569' : '#8b949e'),
+                background: isCurrent ? (isLight ? '#ffffff' : 'rgba(56, 189, 248, 0.12)') : 'transparent',
+                border: isCurrent ? `1px solid ${rc}` : '1px solid transparent',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
@@ -196,44 +223,51 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
         )}
 
         {/* Operational Profile */}
-        <div style={{ background: '#161b22', padding: '10px 12px', borderRadius: '6px', border: '1px solid #21262d' }}>
-          <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+        <div
+          style={{
+            background: isLight ? '#f8fafc' : '#161b22',
+            padding: '10px 12px',
+            borderRadius: '6px',
+            border: isLight ? '1px solid #e2e8f0' : '1px solid #21262d'
+          }}
+        >
+          <div style={{ fontSize: '9.5px', fontWeight: 700, color: isLight ? '#0284c7' : '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
             Navigation Strategy
           </div>
-          <div style={{ fontSize: '11.5px', color: '#c9d1d9', lineHeight: '1.5' }}>
+          <div style={{ fontSize: '11.5px', color: isLight ? '#334155' : '#c9d1d9', lineHeight: '1.5' }}>
             {OPERATIONAL_PARAMS[route.id]?.summary || route.explanation || ''}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #21262d', fontSize: '10.5px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: isLight ? '1px solid #e2e8f0' : '1px solid #21262d', fontSize: '10.5px' }}>
             <div>
-              <span style={{ color: '#8b949e' }}>Target SOG: </span>
-              <strong style={{ color: '#f0f6fc' }}>{OPERATIONAL_PARAMS[route.id]?.speedTarget || `${meanSOG.toFixed(1)} kt`}</strong>
+              <span style={{ color: isLight ? '#64748b' : '#8b949e' }}>Target SOG: </span>
+              <strong style={{ color: isLight ? '#0f172a' : '#f0f6fc' }}>{OPERATIONAL_PARAMS[route.id]?.speedTarget || `${meanSOG.toFixed(1)} kt`}</strong>
             </div>
             <div>
-              <span style={{ color: '#8b949e' }}>Ice Margin: </span>
-              <strong style={{ color: '#f0f6fc' }}>{OPERATIONAL_PARAMS[route.id]?.iceStrategy || 'Standard'}</strong>
+              <span style={{ color: isLight ? '#64748b' : '#8b949e' }}>Ice Margin: </span>
+              <strong style={{ color: isLight ? '#0f172a' : '#f0f6fc' }}>{OPERATIONAL_PARAMS[route.id]?.iceStrategy || 'Standard'}</strong>
             </div>
           </div>
         </div>
 
         {/* Key Metrics */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: isLight ? '#0284c7' : '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
             Mission Performance Metrics
           </div>
-          <Row label="Distance" value={`${(route.distanceNM || 0).toLocaleString()} NM`} accent />
-          <Row label="Sailing Time" value={`${sailingDays.toFixed(1)} days`} />
-          <Row label="Station Dwell Time" value={`${dwellDays.toFixed(0)} days (48 h Bharati + 72 h Maitri)`} />
-          <Row label="Total Mission Time" value={`${totalDays.toFixed(1)} days`} accent warn={enduranceWarn} />
-          <Row label="Average Speed (SOG)" value={`${meanSOG.toFixed(2)} kt`} />
-          <Row label="Engine Speed (STW)" value={`${meanSTW.toFixed(2)} kt`} />
-          <Row label="Fuel Estimated" value={`${fuel.toFixed(0)} MT of ${capacity.toFixed(0)} MT capacity`} warn={fuelWarn} />
-          <Row label="Average Route Risk" value={`${((route.meanRisk || 0) * 100).toFixed(1)}%`} />
-          <Row label="Peak Risk Segment" value={`${((route.maxRisk || 0) * 100).toFixed(1)}%`} />
+          <Row label="Distance" value={`${(route.distanceNM || 0).toLocaleString()} NM`} accent isLight={isLight} />
+          <Row label="Sailing Time" value={`${sailingDays.toFixed(1)} days`} isLight={isLight} />
+          <Row label="Station Dwell Time" value={`${dwellDays.toFixed(0)} days (48 h Bharati + 72 h Maitri)`} isLight={isLight} />
+          <Row label="Total Mission Time" value={`${totalDays.toFixed(1)} days`} accent warn={enduranceWarn} isLight={isLight} />
+          <Row label="Average Speed (SOG)" value={`${meanSOG.toFixed(2)} kt`} isLight={isLight} />
+          <Row label="Engine Speed (STW)" value={`${meanSTW.toFixed(2)} kt`} isLight={isLight} />
+          <Row label="Fuel Estimated" value={`${fuel.toFixed(0)} MT of ${capacity.toFixed(0)} MT capacity`} warn={fuelWarn} isLight={isLight} />
+          <Row label="Average Route Risk" value={`${((route.meanRisk || 0) * 100).toFixed(1)}%`} isLight={isLight} />
+          <Row label="Peak Risk Segment" value={`${((route.maxRisk || 0) * 100).toFixed(1)}%`} isLight={isLight} />
         </div>
 
         {/* Itinerary */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: isLight ? '#0284c7' : '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
             Voyage Waypoints & Schedule
           </div>
 
@@ -248,15 +282,15 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: '16px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: stop.color, marginTop: '4px' }} />
                   {i < arr.length - 1 && (
-                    <div style={{ width: '1px', flex: 1, background: '#21262d', minHeight: '20px', marginTop: '2px' }} />
+                    <div style={{ width: '1px', flex: 1, background: isLight ? '#cbd5e1' : '#21262d', minHeight: '20px', marginTop: '2px' }} />
                   )}
                 </div>
                 <div style={{ paddingBottom: '12px', flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#f0f6fc' }}>{stop.label}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: isLight ? '#0f172a' : '#f0f6fc' }}>{stop.label}</span>
                     <span style={{ fontSize: '10px', color: stop.color, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{stop.coord}</span>
                   </div>
-                  <div style={{ fontSize: '10.5px', color: '#8b949e', marginTop: '2px' }}>{stop.sub}</div>
+                  <div style={{ fontSize: '10.5px', color: isLight ? '#64748b' : '#8b949e', marginTop: '2px' }}>{stop.sub}</div>
                 </div>
               </div>
             ))}
@@ -268,34 +302,45 @@ export const RouteDetailsDrawer: React.FC<RouteDetailsDrawerProps> = ({
           <button
             onClick={onOpenRiskVisualizer}
             style={{
-              background: '#161b22',
-              border: '1px solid #21262d',
+              background: isLight ? '#f0f9ff' : '#161b22',
+              border: isLight ? '1px solid #bfdbfe' : '1px solid #21262d',
               borderRadius: '6px',
               padding: '8px 12px',
               cursor: 'pointer',
-              color: '#c9d1d9',
+              color: isLight ? '#0284c7' : '#c9d1d9',
               fontSize: '11px',
               textAlign: 'left',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              fontWeight: 600,
               transition: 'border-color 0.12s ease'
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Shield size={13} color="#38bdf8" />
+              <Shield size={13} color={isLight ? '#0284c7' : '#38bdf8'} />
               Compare Risk Breakdown Across All 5 Corridors
             </span>
-            <span style={{ color: '#8b949e' }}>→</span>
+            <span style={{ color: isLight ? '#0284c7' : '#8b949e' }}>→</span>
           </button>
         )}
 
         {/* Ship specifications summary */}
-        <div style={{ padding: '8px 10px', background: '#161b22', border: '1px solid #21262d', borderRadius: '6px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <Anchor size={14} color="#8b949e" />
+        <div
+          style={{
+            padding: '8px 10px',
+            background: isLight ? '#f8fafc' : '#161b22',
+            border: isLight ? '1px solid #e2e8f0' : '1px solid #21262d',
+            borderRadius: '6px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center'
+          }}
+        >
+          <Anchor size={14} color={isLight ? '#0284c7' : '#8b949e'} />
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#f0f6fc' }}>ORV Sagar Kanya (MoES / NCPOR)</div>
-            <div style={{ fontSize: '10px', color: '#8b949e', marginTop: '1px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: isLight ? '#0f172a' : '#f0f6fc' }}>ORV Sagar Kanya (MoES / NCPOR)</div>
+            <div style={{ fontSize: '10px', color: isLight ? '#64748b' : '#8b949e', marginTop: '1px' }}>
               LOA 100.3 m · Draft 5.6 m · 433 m³ bunker (~368 MT) · 45-day endurance
             </div>
           </div>

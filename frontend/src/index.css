@@ -1,43 +1,113 @@
-:root {
-  --font-sans: Helvetica, Arial, sans-serif;
-  --font-mono: 'Courier New', Courier, monospace;
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 
-  /* Translucent Meteorological / Maritime Light Blue & White Theme */
-  --bg-app: transparent;
-  --bg-panel: rgba(240, 248, 255, 0.72);          /* Translucent Ice blue */
-  --bg-panel-header: rgba(224, 242, 254, 0.75);   /* Translucent sky blue */
-  --bg-surface: rgba(255, 255, 255, 0.80);
-  --bg-surface-hover: rgba(224, 242, 254, 0.90);
-  --bg-input: rgba(255, 255, 255, 0.88);
+  /* Dark Theme Palette (AMIP Mission Control) */
+  --bg-app: #090d16;
+  --bg-header: #0d1117;
+  --bg-panel: rgba(13, 17, 23, 0.94);
+  --bg-panel-header: #161b22;
+  --bg-surface: #161b22;
+  --bg-surface-hover: #21262d;
+  --bg-input: #161b22;
 
-  --text-main: #1e293b;         /* Deep slate */
-  --text-data: #0f172a;         /* Dark navy data text */
-  --text-muted: #475569;        /* Slate muted */
+  --text-main: #f0f6fc;
+  --text-data: #ffffff;
+  --text-muted: #8b949e;
+  --text-dim: #6e7681;
+  --text-bright: #ffffff;
+
+  /* Functional Accents */
+  --status-ok: #238636;
+  --status-warn: #d29922;
+  --status-crit: #f85149;
+  --status-info: #1f6feb;
+  --status-cyan: #38bdf8;
+  --status-navy: #0d1117;
+
+  /* Borders */
+  --border-subtle: #21262d;
+  --border-strong: #30363d;
+  --border-dark: #30363d;
+  --border-focus: #388bfd;
+  --shadow-panel: 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* Tactile 3D Extrusion Edge Colors (Zero Blur) */
+  --btn-3d-highlight: rgba(255, 255, 255, 0.14);
+  --btn-3d-neutral-edge: #05080f;
+  --btn-3d-primary-edge: #0c2d6b;
+  --btn-3d-success-edge: #144620;
+  --btn-3d-danger-edge: #5a1010;
+
+  /* Button Hover & Click Borders */
+  --btn-hover-border: #38bdf8;
+  --btn-active-border: #7dd3fc;
+  --btn-primary-hover-border: #79c0ff;
+  --btn-primary-active-border: #a5d6ff;
+  --btn-success-hover-border: #56d364;
+  --btn-success-active-border: #7ee787;
+  --btn-danger-hover-border: #ff7b72;
+  --btn-danger-active-border: #ffa198;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  /* Light Theme Palette (Maritime Ice Blue & Crisp White) */
+  --bg-app: #f0f9ff;
+  --bg-header: #ffffff;
+  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-panel-header: rgba(224, 242, 254, 0.95);
+  --bg-surface: rgba(240, 249, 255, 0.88);
+  --bg-surface-hover: rgba(224, 242, 254, 0.95);
+  --bg-input: #ffffff;
+
+  --text-main: #0f172a;
+  --text-data: #0369a1;
+  --text-muted: #475569;
   --text-dim: #64748b;
-  --text-bright: #0f172a;
+  --text-bright: #0284c7;
 
-  /* Maritime & Meteorological Functional Accents */
-  --status-ok: #0d9488;         /* Solid Teal */
-  --status-warn: #ea580c;       /* Solid Orange */
-  --status-crit: #dc2626;       /* Crisp Red */
-  --status-info: #2563eb;       /* Solid Maritime Blue (blue-600) */
-  --status-navy: #1e3a8a;       /* Dark Navy (blue-900) */
+  /* Functional Accents */
+  --status-ok: #16a34a;
+  --status-warn: #d97706;
+  --status-crit: #dc2626;
+  --status-info: #0284c7;
+  --status-cyan: #0284c7;
+  --status-navy: #0f172a;
 
-  /* Crisp Blue-Gray Translucent Borders */
-  --border-subtle: rgba(147, 197, 253, 0.65);     /* Crisp light blue border */
-  --border-strong: rgba(59, 130, 246, 0.80);      /* border-blue-400 */
-  --border-dark: rgba(148, 163, 184, 0.65);       /* border-slate-400 */
-  --border-focus: #2563eb;
+  /* Borders */
+  --border-subtle: #bfdbfe;
+  --border-strong: #93c5fd;
+  --border-dark: #cbd5e1;
+  --border-focus: #0284c7;
+  --shadow-panel: 0 12px 36px rgba(14, 165, 233, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04);
 
-  --radius-sm: 0px;
-  --radius-md: 0px;
+  /* Tactile 3D Extrusion Edge Colors (Zero Blur) */
+  --btn-3d-highlight: rgba(255, 255, 255, 0.7);
+  --btn-3d-neutral-edge: #94a3b8;
+  --btn-3d-primary-edge: #0369a1;
+  --btn-3d-success-edge: #15803d;
+  --btn-3d-danger-edge: #b91c1c;
+
+  /* Button Hover & Click Borders */
+  --btn-hover-border: #0284c7;
+  --btn-active-border: #0369a1;
+  --btn-primary-hover-border: #0369a1;
+  --btn-primary-active-border: #1e3a8a;
+  --btn-success-hover-border: #15803d;
+  --btn-success-active-border: #14532d;
+  --btn-danger-hover-border: #b91c1c;
+  --btn-danger-active-border: #7f1d1d;
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  border-radius: 0px !important;
 }
 
 html, body, #root {
@@ -52,58 +122,143 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Tactile 3D Button Engine */
+/* ============================================================
+   Tactile 3D Button Engine (Zero Blurry Shadow, Pure 3D Depth)
+   ============================================================ */
 button {
-  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.06s ease, border-color 0.1s ease, outline 0.1s ease;
   position: relative;
   user-select: none;
   cursor: pointer;
-  box-shadow: 0 3px 0 rgba(147, 197, 253, 0.9), 0 3px 6px rgba(15, 23, 42, 0.08);
+  /* Crisp 3D cap: Top highlight bevel + Solid 3px bottom extrusion, ZERO blur */
+  box-shadow: inset 0 1px 0 var(--btn-3d-highlight), 0 3px 0 0 var(--btn-3d-neutral-edge) !important;
 }
 
+/* Hover & Active Border Engine */
 button:hover {
-  filter: brightness(1.04);
+  filter: brightness(1.05);
+  border-color: var(--btn-hover-border) !important;
+  outline: 1.5px solid var(--btn-hover-border);
+  outline-offset: -1px;
 }
 
 button:active {
   transform: translateY(2px) !important;
-  box-shadow: 0 1px 0 rgba(147, 197, 253, 0.9), 0 1px 3px rgba(15, 23, 42, 0.12) !important;
+  /* Compressed 3D edge when physically pressed */
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2), 0 1px 0 0 var(--btn-3d-neutral-edge) !important;
+  border-color: var(--btn-active-border) !important;
+  outline: 2px solid var(--btn-active-border);
+  outline-offset: -1px;
 }
 
-/* 3D Primary Action Buttons */
+/* 3D Primary Action Buttons (Blue) */
 .btn-3d-primary,
-button[style*="background: rgb(37, 99, 235)"],
-button[style*="background: #2563eb"],
-button[style*="background:#2563eb"] {
-  box-shadow: 0 3px 0 #1e3a8a, 0 4px 8px rgba(30, 58, 138, 0.28) !important;
-  border-bottom: 2px solid #1e3a8a !important;
+button[style*="#0284c7"],
+button[style*="#1f6feb"],
+button[style*="#2563eb"],
+button[style*="rgb(2, 132, 199)"],
+button[style*="rgb(31, 111, 235)"],
+button[style*="rgb(37, 99, 235)"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 0 var(--btn-3d-primary-edge) !important;
+}
+
+.btn-3d-primary:hover,
+button[style*="#0284c7"]:hover,
+button[style*="#1f6feb"]:hover,
+button[style*="#2563eb"]:hover,
+button[style*="rgb(2, 132, 199)"]:hover,
+button[style*="rgb(31, 111, 235)"]:hover,
+button[style*="rgb(37, 99, 235)"]:hover {
+  border-color: var(--btn-primary-hover-border) !important;
+  outline: 1.5px solid var(--btn-primary-hover-border);
 }
 
 .btn-3d-primary:active,
-button[style*="background: rgb(37, 99, 235)"]:active,
-button[style*="background: #2563eb"]:active,
-button[style*="background:#2563eb"]:active {
+button[style*="#0284c7"]:active,
+button[style*="#1f6feb"]:active,
+button[style*="#2563eb"]:active,
+button[style*="rgb(2, 132, 199)"]:active,
+button[style*="rgb(31, 111, 235)"]:active,
+button[style*="rgb(37, 99, 235)"]:active {
   transform: translateY(2px) !important;
-  box-shadow: 0 1px 0 #1e3a8a, 0 2px 4px rgba(30, 58, 138, 0.20) !important;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2), 0 1px 0 0 var(--btn-3d-primary-edge) !important;
+  border-color: var(--btn-primary-active-border) !important;
+  outline: 2px solid var(--btn-primary-active-border);
 }
 
-/* 3D Secondary & White Buttons */
-.btn-3d-secondary,
-button[style*="background: #ffffff"],
-button[style*="background: #fff"],
-button[style*="background: rgb(255, 255, 255)"],
-button[style*="background: rgba(255, 255, 255"] {
-  box-shadow: 0 3px 0 #93c5fd, 0 3px 6px rgba(37, 99, 235, 0.12) !important;
-  border-bottom: 2px solid #93c5fd !important;
+/* 3D Success Action Buttons (Green) */
+.btn-3d-success,
+button[style*="#16a34a"],
+button[style*="#238636"],
+button[style*="rgb(22, 163, 74)"],
+button[style*="rgb(35, 134, 54)"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 0 var(--btn-3d-success-edge) !important;
 }
 
-.btn-3d-secondary:active,
-button[style*="background: #ffffff"]:active,
-button[style*="background: #fff"]:active,
-button[style*="background: rgb(255, 255, 255)"]:active,
-button[style*="background: rgba(255, 255, 255"]:active {
+.btn-3d-success:hover,
+button[style*="#16a34a"]:hover,
+button[style*="#238636"]:hover,
+button[style*="rgb(22, 163, 74)"]:hover,
+button[style*="rgb(35, 134, 54)"]:hover {
+  border-color: var(--btn-success-hover-border) !important;
+  outline: 1.5px solid var(--btn-success-hover-border);
+}
+
+.btn-3d-success:active,
+button[style*="#16a34a"]:active,
+button[style*="#238636"]:active,
+button[style*="rgb(22, 163, 74)"]:active,
+button[style*="rgb(35, 134, 54)"]:active {
   transform: translateY(2px) !important;
-  box-shadow: 0 1px 0 #93c5fd, 0 1px 3px rgba(37, 99, 235, 0.15) !important;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2), 0 1px 0 0 var(--btn-3d-success-edge) !important;
+  border-color: var(--btn-success-active-border) !important;
+  outline: 2px solid var(--btn-success-active-border);
+}
+
+/* 3D Danger Action Buttons (Red) */
+.btn-3d-danger,
+button[style*="#da3633"],
+button[style*="#dc2626"],
+button[style*="#ef4444"],
+button[style*="rgb(218, 54, 51)"],
+button[style*="rgb(220, 38, 38)"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 0 var(--btn-3d-danger-edge) !important;
+}
+
+.btn-3d-danger:hover,
+button[style*="#da3633"]:hover,
+button[style*="#dc2626"]:hover,
+button[style*="#ef4444"]:hover,
+button[style*="rgb(218, 54, 51)"]:hover,
+button[style*="rgb(220, 38, 38)"]:hover {
+  border-color: var(--btn-danger-hover-border) !important;
+  outline: 1.5px solid var(--btn-danger-hover-border);
+}
+
+button[style*="#da3633"]:active,
+button[style*="#dc2626"]:active,
+button[style*="#ef4444"]:active,
+button[style*="rgb(218, 54, 51)"]:active,
+button[style*="rgb(220, 38, 38)"]:active {
+  transform: translateY(2px) !important;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.2), 0 1px 0 0 var(--btn-3d-danger-edge) !important;
+  border-color: var(--btn-danger-active-border) !important;
+  outline: 2px solid var(--btn-danger-active-border);
+}
+
+/* Pure icon buttons or transparent close buttons */
+button[style*="background: transparent"],
+button[style*="background:transparent"],
+button[style*="background: none"],
+button[style*="background:none"] {
+  box-shadow: none !important;
+}
+button[style*="background: transparent"]:active,
+button[style*="background:transparent"]:active,
+button[style*="background: none"]:active,
+button[style*="background:none"]:active {
+  transform: scale(0.92) !important;
+  box-shadow: none !important;
 }
 
 .font-sans {
@@ -138,7 +293,7 @@ button[style*="background: rgba(255, 255, 255"]:active {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #172554;
+  color: var(--text-main);
   font-family: var(--font-sans);
 }
 
@@ -153,7 +308,6 @@ button[style*="background: rgba(255, 255, 255"]:active {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-subtle);
-  border-radius: 0px;
   padding: 8px 12px;
 }
 
@@ -172,7 +326,7 @@ button[style*="background: rgba(255, 255, 255"]:active {
 
 .ws-table th {
   background: var(--bg-panel-header);
-  color: #1e3a8a;
+  color: var(--text-bright);
   font-weight: 700;
   text-align: left;
   padding: 8px 12px;
@@ -186,8 +340,8 @@ button[style*="background: rgba(255, 255, 255"]:active {
 
 .ws-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
-  color: #0f172a;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
 }
 
 .ws-table tr:hover td {

@@ -142,7 +142,7 @@ export const EnvironmentalTimelineView: React.FC = () => {
                   background: isActive ? '#2563eb' : 'rgba(255, 255, 255, 0.85)',
                   color: isActive ? '#ffffff' : '#1e293b',
                   cursor: 'pointer',
-                  boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.25)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37, 99, 235, 0.08)'
+                  boxShadow: isActive ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1e3a8a' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 0 #93c5fd'
                 }}
               >
                 {st.toUpperCase()} SECTOR
@@ -257,7 +257,7 @@ export const EnvironmentalTimelineView: React.FC = () => {
                   background: isActive ? '#2563eb' : 'rgba(255, 255, 255, 0.85)',
                   color: isActive ? '#ffffff' : '#1e293b',
                   cursor: 'pointer',
-                  boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.25)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37, 99, 235, 0.08)'
+                  boxShadow: isActive ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1e3a8a' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 0 #93c5fd'
                 }}
               >
                 {hz}

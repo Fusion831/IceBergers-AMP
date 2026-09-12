@@ -193,9 +193,19 @@ interface MissionContextType {
   setMissionConfig: React.Dispatch<React.SetStateAction<MissionConfig>>;
   vessels: VesselProfile[];
   routes: RouteAlternative[];
+  setRoutes: React.Dispatch<React.SetStateAction<RouteAlternative[]>>;
+  customOriginDest: {
+    origin?: { name: string; coords: [number, number] };
+    dest?: { name: string; coords: [number, number] };
+  } | null;
+  setCustomOriginDest: React.Dispatch<React.SetStateAction<{
+    origin?: { name: string; coords: [number, number] };
+    dest?: { name: string; coords: [number, number] };
+  } | null>>;
+  resetToCanonicalRoutes: () => void;
   selectedRouteId: string;
   setSelectedRouteId: (id: string) => void;
-  selectedRoute: RouteAlternative;
+  selectedRoute: RouteAlternative | null;
   locations: LocationData[];
   selectedLocationId: string;
   setSelectedLocationId: (id: string) => void;
@@ -244,8 +254,26 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [timeHorizon, setTimeHorizon] = useState<TimeHorizon>('Now');
   const [missionConfig, setMissionConfig] = useState<MissionConfig>(INITIAL_MISSION);
   const [vessels] = useState<VesselProfile[]>(AVAILABLE_VESSELS);
-  const [routes] = useState<RouteAlternative[]>(formattedRoutes);
-  const [selectedRouteId, setSelectedRouteId] = useState<string>('fastest');
+  const [routes, setRoutes] = useState<RouteAlternative[]>(formattedRoutes);
+  const [customOriginDest, setCustomOriginDest] = useState<{
+    origin?: { name: string; coords: [number, number] };
+    dest?: { name: string; coords: [number, number] };
+  } | null>(null);
+
+  const resetToCanonicalRoutes = () => {
+    setRoutes(formattedRoutes);
+    setSelectedRouteId('');
+    setEnabledRoutes({
+      fastest: true,
+      shortest: true,
+      safest: true,
+      fuel_efficient: true,
+      balanced: true
+    });
+    setCustomOriginDest(null);
+  };
+
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
   const [locations] = useState<LocationData[]>(INITIAL_LOCATIONS);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('bharati');
   const [inspectionPoint, setInspectionPoint] = useState<InspectionData>(INITIAL_INSPECTION);
@@ -277,7 +305,7 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedSegment, setSelectedSegment] = useState<any | null>(null);
   const [selectedIceberg, setSelectedIceberg] = useState<any | null>(null);
 
-  const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0];
+  const selectedRoute = (selectedRouteId ? routes.find((r) => r.id === selectedRouteId) : null) || null;
 
   // Icebergs list from frozen dataset
   const icebergsList = (icebergsRawData as any).features || [];
@@ -321,6 +349,10 @@ export const MissionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setMissionConfig,
         vessels,
         routes,
+        setRoutes,
+        customOriginDest,
+        setCustomOriginDest,
+        resetToCanonicalRoutes,
         selectedRouteId,
         setSelectedRouteId,
         selectedRoute,

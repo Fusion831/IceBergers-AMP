@@ -111,7 +111,7 @@ export const LocationComparisonView: React.FC = () => {
             fontFamily: 'var(--font-mono)',
             fontWeight: 800,
             cursor: 'pointer',
-            boxShadow: '0 3px 0 #93c5fd, 0 3px 6px rgba(37, 99, 235, 0.15)'
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 3px 0 #93c5fd'
           }}
         >
           <span>VIEW ROUTE ALTERNATIVES</span>

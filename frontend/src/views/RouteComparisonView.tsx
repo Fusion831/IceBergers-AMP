@@ -206,7 +206,7 @@ export const RouteComparisonView: React.FC = () => {
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 800,
                           cursor: 'pointer',
-                          boxShadow: isSelected ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.25)' : '0 2px 0 #93c5fd, 0 2px 4px rgba(37, 99, 235, 0.08)'
+                          boxShadow: isSelected ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1e3a8a' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 0 #93c5fd'
                         }}
                       >
                         {isSelected ? 'ACTIVE' : 'SELECT'}
@@ -285,7 +285,7 @@ export const RouteComparisonView: React.FC = () => {
             fontWeight: 800,
             cursor: 'pointer',
             letterSpacing: '0.03em',
-            boxShadow: '0 3px 0 #1e3a8a, 0 4px 8px rgba(30, 58, 138, 0.3)'
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 #1e3a8a'
           }}
         >
           <span>PLOT SELECTED ROUTE ON MAP WORKSPACE</span>

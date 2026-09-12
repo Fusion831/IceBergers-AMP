@@ -110,7 +110,7 @@ export const AntarcticMapView: React.FC = () => {
                       fontWeight: isActive ? 800 : 600,
                       cursor: 'pointer',
                       textAlign: 'left',
-                      boxShadow: isActive ? '0 2px 0 #1e3a8a, 0 3px 5px rgba(30, 58, 138, 0.2)' : 'none'
+                      boxShadow: isActive ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 3px 0 #1e3a8a' : 'inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 0 #93c5fd'
                     }}
                   >
                     <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 700 }}>{layer.label}</div>
@@ -237,7 +237,7 @@ export const AntarcticMapView: React.FC = () => {
               fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 0 #1e3a8a'
             }}
           >
             <PanelLeftOpen size={13} />

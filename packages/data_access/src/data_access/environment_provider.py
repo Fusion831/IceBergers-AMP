@@ -77,7 +77,11 @@ class SyntheticEnvironmentalDataProvider(EnvironmentalDataProviderInterface):
         wind_u = float(self.reader._synthesize_mock_field("wind_u10", valid_time, lats, lons)[0, 0])
         wind_v = float(self.reader._synthesize_mock_field("wind_v10", valid_time, lats, lons)[0, 0])
         wind_speed = float(np.sqrt(wind_u**2 + wind_v**2))
-        is_land = 1.0 if depth <= 0.0 or point.latitude < -78.0 else 0.0
+        try:
+            from routing.amip_custom_router import _get_antarctic_land_limit_lat
+            is_land = 1.0 if (depth <= 0.0 or point.latitude < (_get_antarctic_land_limit_lat(point.longitude) - 0.05)) else 0.0
+        except Exception:
+            is_land = 1.0 if depth <= 0.0 or point.latitude < -72.0 else 0.0
 
         return {
             "sea_ice_concentration": round(sic, 4),
@@ -129,7 +133,11 @@ class CoupledEnvironmentalDataProvider(EnvironmentalDataProviderInterface):
         wind_u = float(self.reader._synthesize_mock_field("wind_u10", valid_time, lats, lons)[0, 0])
         wind_v = float(self.reader._synthesize_mock_field("wind_v10", valid_time, lats, lons)[0, 0])
         wind_speed = float(np.sqrt(wind_u**2 + wind_v**2))
-        is_land = 1.0 if depth <= 0.0 or point.latitude < -78.0 else 0.0
+        try:
+            from routing.amip_custom_router import _get_antarctic_land_limit_lat
+            is_land = 1.0 if (depth <= 0.0 or point.latitude < (_get_antarctic_land_limit_lat(point.longitude) - 0.05)) else 0.0
+        except Exception:
+            is_land = 1.0 if depth <= 0.0 or point.latitude < -72.0 else 0.0
 
         # Query active sea-ice provider
         sic_info = self.sea_ice_provider.get_sea_ice_at(

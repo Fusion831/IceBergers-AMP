@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MissionProvider, useMission } from './context/MissionContext';
 import { Header } from './components/Header';
 import { AntarcticMap } from './components/AntarcticMap';
@@ -6,6 +6,7 @@ import { MissionPlanDrawer } from './components/MissionPlanDrawer';
 import { RouteDetailsDrawer } from './components/RouteDetailsDrawer';
 import { MapLayersMenu } from './components/MapLayersMenu';
 import { PathRiskVisualizer } from './components/PathRiskVisualizer';
+import { DynamicVoyageWindow } from './components/DynamicVoyageWindow';
 
 function MainWorkstation() {
   const {
@@ -23,14 +24,38 @@ function MainWorkstation() {
 
   // Drawer / Menu Toggles (HUD panels)
   const [isMissionPlanOpen, setIsMissionPlanOpen] = useState<boolean>(false);
+  const [isDynamicVoyageOpen, setIsDynamicVoyageOpen] = useState<boolean>(false);
   const [isRouteDetailsOpen, setIsRouteDetailsOpen] = useState<boolean>(false);
   const [isRiskVisualizerOpen, setIsRiskVisualizerOpen] = useState<boolean>(false);
   const [isMapLayersOpen, setIsMapLayersOpen] = useState<boolean>(false);
 
   // Map Layer States
   const [showIcebergs, setShowIcebergs] = useState<boolean>(true);
-  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-terrain' | 'osm'>('google-earth');
+  const [showSIC, setShowSIC] = useState<boolean>(true);
+  const [showBorders, setShowBorders] = useState<boolean>(true);
+  const [basemapStyle, setBasemapStyle] = useState<'google-earth' | 'google-hybrid' | 'google-terrain' | 'osm'>('google-earth');
   const [hoveredCellData, setHoveredCellData] = useState<any | null>(null);
+
+  // Theme state: dark vs light (light blue & white)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('app-theme');
+      return saved === 'light' || saved === 'dark' ? saved : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('app-theme', theme);
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   const handleSelectRoute = (routeId: string) => {
     setSelectedRouteId(routeId);
@@ -47,13 +72,24 @@ function MainWorkstation() {
         width: '100vw',
         overflow: 'hidden',
         position: 'relative',
-        background: '#090d16'
+        background: theme === 'light' ? '#f0f9ff' : '#090d16',
+        transition: 'background-color 0.2s ease'
       }}
     >
       {/* Sleek, Non-technical Header */}
       <Header
+        theme={theme}
+        onToggleTheme={toggleTheme}
         isMissionPlanOpen={isMissionPlanOpen}
-        onToggleMissionPlan={() => setIsMissionPlanOpen((prev) => !prev)}
+        onToggleMissionPlan={() => {
+          setIsMissionPlanOpen((prev) => !prev);
+          if (!isMissionPlanOpen) setIsDynamicVoyageOpen(false);
+        }}
+        isDynamicVoyageOpen={isDynamicVoyageOpen}
+        onToggleDynamicVoyage={() => {
+          setIsDynamicVoyageOpen((prev) => !prev);
+          if (!isDynamicVoyageOpen) setIsMissionPlanOpen(false);
+        }}
         isRouteDetailsOpen={isRouteDetailsOpen}
         onToggleRouteDetails={() => setIsRouteDetailsOpen((prev) => !prev)}
         isRiskVisualizerOpen={isRiskVisualizerOpen}
@@ -74,25 +110,37 @@ function MainWorkstation() {
         }}
       >
         <AntarcticMap
+          theme={theme}
           selectedHorizon={timeHorizon}
           selectedRoute={selectedRouteId}
           onHorizonChange={(hz) => setTimeHorizon(hz as any)}
           onSelectRoute={handleSelectRoute}
           showH3Grid={showH3Grid}
+          showSIC={showSIC}
+          showBorders={showBorders}
           showIcebergs={showIcebergs}
           showTrajectories={showTrajectories}
           basemapStyle={basemapStyle}
           onHoverCell={setHoveredCellData}
         />
 
-        {/* Togglable Left Panel: Mission Plan (First GOL) */}
+        {/* Togglable Dynamic Voyage Window (Custom Stations Engine) */}
+        <DynamicVoyageWindow
+          theme={theme}
+          isOpen={isDynamicVoyageOpen}
+          onClose={() => setIsDynamicVoyageOpen(false)}
+        />
+
+        {/* Togglable Left Panel: Mission Plan (Canonical ISE-44) */}
         <MissionPlanDrawer
+          theme={theme}
           isOpen={isMissionPlanOpen}
           onClose={() => setIsMissionPlanOpen(false)}
         />
 
         {/* Togglable Right Panel: Route Details */}
         <RouteDetailsDrawer
+          theme={theme}
           isOpen={isRouteDetailsOpen}
           onClose={() => setIsRouteDetailsOpen(false)}
           route={selectedRoute}
@@ -103,6 +151,7 @@ function MainWorkstation() {
 
         {/* Togglable Right Panel: Path Risk Score Visualizer */}
         <PathRiskVisualizer
+          theme={theme}
           isOpen={isRiskVisualizerOpen}
           onClose={() => setIsRiskVisualizerOpen(false)}
           onSelectRoute={handleSelectRoute}
@@ -110,10 +159,15 @@ function MainWorkstation() {
 
         {/* Togglable Top-Right Panel: Map Layers & Ocean Readout */}
         <MapLayersMenu
+          theme={theme}
           isOpen={isMapLayersOpen}
           onClose={() => setIsMapLayersOpen(false)}
           showH3Grid={showH3Grid}
           onToggleH3Grid={() => setShowH3Grid((prev) => !prev)}
+          showSIC={showSIC}
+          onToggleSIC={() => setShowSIC((prev) => !prev)}
+          showBorders={showBorders}
+          onToggleBorders={() => setShowBorders((prev) => !prev)}
           showIcebergs={showIcebergs}
           onToggleIcebergs={() => setShowIcebergs((prev) => !prev)}
           showTrajectories={showTrajectories}
