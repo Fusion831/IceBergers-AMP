@@ -50,14 +50,13 @@ export const DynamicVoyageWindow: React.FC<DynamicVoyageWindowProps> = ({
   const [originStationId, setOriginStationId] = useState<string>('cape-town');
   const [destStationId, setDestStationId] = useState<string>('bharati');
 
-  // Custom Coordinates
-  const [isCustomOrigin, setIsCustomOrigin] = useState<boolean>(false);
-  const [customOriginLat, setCustomOriginLat] = useState<number>(-33.9249);
-  const [customOriginLon, setCustomOriginLon] = useState<number>(18.4241);
-
-  const [isCustomDest, setIsCustomDest] = useState<boolean>(false);
-  const [customDestLat, setCustomDestLat] = useState<number>(-69.4072);
-  const [customDestLon, setCustomDestLon] = useState<number>(76.1911);
+  // Custom Coordinates (disabled — using pre-computed cache for preset stations)
+  const isCustomOrigin = false;
+  const customOriginLat = -33.9249;
+  const customOriginLon = 18.4241;
+  const isCustomDest = false;
+  const customDestLat = -69.4072;
+  const customDestLon = 76.1911;
 
   // Voyage Config
   const [vesselId, setVesselId] = useState<string>('sagar-kanya');
@@ -198,18 +197,9 @@ export const DynamicVoyageWindow: React.FC<DynamicVoyageWindowProps> = ({
   };
 
   const handleSwapStations = () => {
-    if (isCustomOrigin || isCustomDest) {
-      const prevOrigLat = customOriginLat;
-      const prevOrigLon = customOriginLon;
-      setCustomOriginLat(customDestLat);
-      setCustomOriginLon(customDestLon);
-      setCustomDestLat(prevOrigLat);
-      setCustomDestLon(prevOrigLon);
-    } else {
-      const prevO = originStationId;
-      setOriginStationId(destStationId);
-      setDestStationId(prevO);
-    }
+    const prevO = originStationId;
+    setOriginStationId(destStationId);
+    setDestStationId(prevO);
   };
 
   const handleResetToCanonical = () => {
@@ -284,12 +274,12 @@ export const DynamicVoyageWindow: React.FC<DynamicVoyageWindowProps> = ({
           <div>
             <div style={{ fontSize: '13.5px', fontWeight: 700, color: isLight ? '#0f172a' : '#f0f6fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Dynamic Voyage Planner</span>
-              <span style={{ fontSize: '9px', background: isLight ? '#dcfce7' : '#23863633', color: isLight ? '#15803d' : '#7ee787', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                LIVE ENGINE
+              <span style={{ fontSize: '9px', background: isLight ? '#dbeafe' : '#1d4ed833', color: isLight ? '#1d4ed8' : '#60a5fa', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                CACHED · OFFLINE
               </span>
             </div>
             <div style={{ fontSize: '11px', color: isLight ? '#64748b' : '#8b949e' }}>
-              POST /api/v1/routes/plan-voyage · Dynamic physics routing
+              48 pre-computed pairs · 5 objectives each · No backend required
             </div>
           </div>
         </div>
@@ -329,139 +319,73 @@ export const DynamicVoyageWindow: React.FC<DynamicVoyageWindowProps> = ({
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }}></span>
               Starting Station / Departure Port:
             </label>
-            {!isCustomOrigin ? (
-              <select
-                value={originStationId}
-                onChange={(e) => {
-                  if (e.target.value === 'CUSTOM') setIsCustomOrigin(true);
-                  else setOriginStationId(e.target.value);
-                }}
-                style={{ width: '100%', background: isLight ? '#ffffff' : '#161b22', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', outline: 'none' }}
-              >
-                {gatewayStations.length > 0 && (
-                  <optgroup label="Gateways & Ports" style={{ background: isLight ? '#f0f9ff' : '#161b22', color: isLight ? '#0284c7' : '#58a6ff', fontWeight: 'bold' }}>
-                    {gatewayStations.map((s) => (
-                      <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                        {s.name} {s.country ? `(${s.country})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {antarcticStations.length > 0 && (
-                  <optgroup label="Antarctic Research Bases" style={{ background: isLight ? '#f0fdf4' : '#161b22', color: isLight ? '#16a34a' : '#7ee787', fontWeight: 'bold' }}>
-                    {antarcticStations.map((s) => (
-                      <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {gatewayStations.length === 0 && antarcticStations.length === 0 && stations.map((s) => (
-                  <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                    {s.name} {s.country ? `(${s.country})` : ''}
-                  </option>
-                ))}
-                <option value="CUSTOM" style={{ background: isLight ? '#eff6ff' : '#21262d', color: isLight ? '#0284c7' : '#58a6ff', fontWeight: 'bold' }}>
-                  📍 Custom Coordinates (Lat, Lon)...
+            <select
+              value={originStationId}
+              onChange={(e) => setOriginStationId(e.target.value)}
+              style={{ width: '100%', background: isLight ? '#ffffff' : '#161b22', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', outline: 'none' }}
+            >
+              {gatewayStations.length > 0 && (
+                <optgroup label="Gateways & Ports" style={{ background: isLight ? '#f0f9ff' : '#161b22', color: isLight ? '#0284c7' : '#58a6ff', fontWeight: 'bold' }}>
+                  {gatewayStations.map((s) => (
+                    <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                      {s.name} {s.country ? `(${s.country})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {antarcticStations.length > 0 && (
+                <optgroup label="Antarctic Research Bases" style={{ background: isLight ? '#f0fdf4' : '#161b22', color: isLight ? '#16a34a' : '#7ee787', fontWeight: 'bold' }}>
+                  {antarcticStations.map((s) => (
+                    <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {gatewayStations.length === 0 && antarcticStations.length === 0 && stations.map((s) => (
+                <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                  {s.name} {s.country ? `(${s.country})` : ''}
                 </option>
-              </select>
-            ) : (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Lat (e.g. -33.92)"
-                  value={customOriginLat}
-                  onChange={(e) => setCustomOriginLat(parseFloat(e.target.value) || 0)}
-                  style={{ flex: 1, background: isLight ? '#ffffff' : '#0d1117', border: `1px solid ${isLight ? '#0284c7' : '#388bfd'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '6px 8px', borderRadius: '4px', fontSize: '11.5px' }}
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Lon (e.g. 18.42)"
-                  value={customOriginLon}
-                  onChange={(e) => setCustomOriginLon(parseFloat(e.target.value) || 0)}
-                  style={{ flex: 1, background: isLight ? '#ffffff' : '#0d1117', border: `1px solid ${isLight ? '#0284c7' : '#388bfd'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '6px 8px', borderRadius: '4px', fontSize: '11.5px' }}
-                />
-                <button
-                  onClick={() => setIsCustomOrigin(false)}
-                  style={{ padding: '6px 10px', background: isLight ? '#e2e8f0' : '#21262d', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#475569' : '#8b949e', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
-                >
-                  List
-                </button>
-              </div>
-            )}
+              ))}
+            </select>
           </div>
 
-          {/* Destination Station */}
           <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '11px', color: isLight ? '#0f172a' : '#c9d1d9', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
               Ending Destination Station:
             </label>
-            {!isCustomDest ? (
-              <select
-                value={destStationId}
-                onChange={(e) => {
-                  if (e.target.value === 'CUSTOM') setIsCustomDest(true);
-                  else setDestStationId(e.target.value);
-                }}
-                style={{ width: '100%', background: isLight ? '#ffffff' : '#161b22', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', outline: 'none' }}
-              >
-                {antarcticStations.length > 0 && (
-                  <optgroup label="Antarctic Research Bases" style={{ background: isLight ? '#f0fdf4' : '#161b22', color: isLight ? '#16a34a' : '#7ee787', fontWeight: 'bold' }}>
-                    {antarcticStations.map((s) => (
-                      <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {gatewayStations.length > 0 && (
-                  <optgroup label="Gateways & Ports" style={{ background: isLight ? '#f0f9ff' : '#161b22', color: isLight ? '#0284c7' : '#58a6ff', fontWeight: 'bold' }}>
-                    {gatewayStations.map((s) => (
-                      <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                        {s.name} {s.country ? `(${s.country})` : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {gatewayStations.length === 0 && antarcticStations.length === 0 && stations.map((s) => (
-                  <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
-                    {s.name} {s.country ? `(${s.country})` : ''}
-                  </option>
-                ))}
-                <option value="CUSTOM" style={{ background: isLight ? '#eff6ff' : '#21262d', color: '#dc2626', fontWeight: 'bold' }}>
-                  📍 Custom Coordinates (Lat, Lon)...
+            <select
+              value={destStationId}
+              onChange={(e) => setDestStationId(e.target.value)}
+              style={{ width: '100%', background: isLight ? '#ffffff' : '#161b22', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#0f172a' : '#f0f6fc', padding: '8px 10px', borderRadius: '6px', fontSize: '12px', outline: 'none' }}
+            >
+              {antarcticStations.length > 0 && (
+                <optgroup label="Antarctic Research Bases" style={{ background: isLight ? '#f0fdf4' : '#161b22', color: isLight ? '#16a34a' : '#7ee787', fontWeight: 'bold' }}>
+                  {antarcticStations.map((s) => (
+                    <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {gatewayStations.length > 0 && (
+                <optgroup label="Gateways & Ports" style={{ background: isLight ? '#f0f9ff' : '#161b22', color: isLight ? '#0284c7' : '#58a6ff', fontWeight: 'bold' }}>
+                  {gatewayStations.map((s) => (
+                    <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                      {s.name} {s.country ? `(${s.country})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {gatewayStations.length === 0 && antarcticStations.length === 0 && stations.map((s) => (
+                <option key={s.id} value={s.id} style={{ background: isLight ? '#ffffff' : '#0d1117', color: isLight ? '#0f172a' : '#f0f6fc' }}>
+                  {s.name} {s.country ? `(${s.country})` : ''}
                 </option>
-              </select>
-            ) : (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Lat (e.g. -69.40)"
-                  value={customDestLat}
-                  onChange={(e) => setCustomDestLat(parseFloat(e.target.value) || 0)}
-                  style={{ flex: 1, background: isLight ? '#ffffff' : '#0d1117', border: '1px solid #ef4444', color: isLight ? '#0f172a' : '#f0f6fc', padding: '6px 8px', borderRadius: '4px', fontSize: '11.5px' }}
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Lon (e.g. 76.19)"
-                  value={customDestLon}
-                  onChange={(e) => setCustomDestLon(parseFloat(e.target.value) || 0)}
-                  style={{ flex: 1, background: isLight ? '#ffffff' : '#0d1117', border: '1px solid #ef4444', color: isLight ? '#0f172a' : '#f0f6fc', padding: '6px 8px', borderRadius: '4px', fontSize: '11.5px' }}
-                />
-                <button
-                  onClick={() => setIsCustomDest(false)}
-                  style={{ padding: '6px 10px', background: isLight ? '#e2e8f0' : '#21262d', border: `1px solid ${isLight ? '#cbd5e1' : '#30363d'}`, color: isLight ? '#475569' : '#8b949e', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
-                >
-                  List
-                </button>
-              </div>
-            )}
+              ))}
+            </select>
           </div>
+
 
           {/* Vessel & Date Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>

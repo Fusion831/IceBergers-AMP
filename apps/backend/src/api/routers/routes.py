@@ -101,25 +101,24 @@ async def plan_dynamic_voyage(request: DynamicVoyagePlanRequest) -> Dict[str, An
     router_engine = AMIPCustomRouter(mode="corridor")
     vessel = VesselProfile()
 
-    # 4. Generate Alternative for Each Requested Objective
+    # 4. Generate Alternative for Each Requested Objective with Pareto boundary enforcement
     objectives_to_run = request.objectives or ["FASTEST", "SAFEST", "SHORTEST", "FUEL_EFFICIENT", "BALANCED"]
-    calculated_routes = []
-
+    obj_enums = []
     for obj_name in objectives_to_run:
         try:
-            obj_enum = RouteObjective(obj_name)
+            obj_enums.append(RouteObjective(obj_name))
         except Exception:
-            obj_enum = RouteObjective.FASTEST
+            pass
 
-        alt: RouteAlternative = router_engine.optimize_leg(
-            origin=origin_point,
-            destination=dest_point,
-            departure_time=dep_time,
-            objective=obj_enum,
-            vessel=vessel,
-        )
+    alternatives = router_engine.optimize_all_alternatives(
+        origin=origin_point,
+        destination=dest_point,
+        departure_time=dep_time,
+        vessel=vessel,
+        objectives=obj_enums,
+    )
 
-        calculated_routes.append(alt.model_dump(mode="json"))
+    calculated_routes = [alt.model_dump(mode="json") for alt in alternatives]
 
     return {
         "origin": {"name": orig_name, "latitude": orig_lat, "longitude": orig_lon},

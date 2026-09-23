@@ -1,4 +1,4 @@
-export interface StationInfo {
+﻿export interface StationInfo {
   id: string;
   name: string;
   latitude: number;
@@ -88,8 +88,30 @@ export const PRESET_STATIONS: StationInfo[] = [
   { id: 'davis', name: 'Davis Station (Vestfold Hills)', latitude: -68.5764, longitude: 77.9672, country: 'Australia', type: 'Antarctic Base', category: 'Antarctic Station' },
   { id: 'mawson', name: 'Mawson Station (Holme Bay)', latitude: -67.6044, longitude: 62.8739, country: 'Australia', type: 'Antarctic Base', category: 'Antarctic Station' },
   { id: 'troll', name: 'Troll Station (Crown Bay Access)', latitude: -69.8500, longitude: 2.535, country: 'Norway', type: 'Antarctic Base', category: 'Antarctic Station' },
-  { id: 'neumayer', name: 'Neumayer Station III (Ekström Ice Shelf)', latitude: -70.6744, longitude: -8.2742, country: 'Germany', type: 'Antarctic Base', category: 'Antarctic Station' }
+  { id: 'neumayer', name: 'Neumayer Station III (Ekstrom Ice Shelf)', latitude: -70.6744, longitude: -8.2742, country: 'Germany', type: 'Antarctic Base', category: 'Antarctic Station' }
 ];
+
+// Pre-computed voyage cache (48 station pairs x 5 objectives each)
+// Loaded via Vite dynamic import so it is bundled at build time.
+let _voyageCachePromise: Promise<Record<string, DynamicVoyageResponse>> | null = null;
+
+function loadVoyageCache(): Promise<Record<string, DynamicVoyageResponse>> {
+  if (!_voyageCachePromise) {
+    _voyageCachePromise = import('../data/voyage_cache.json')
+      .then((mod) => mod.default as unknown as Record<string, DynamicVoyageResponse>)
+      .catch(() => ({}));
+  }
+  return _voyageCachePromise;
+}
+
+async function lookupCache(
+  originId: string,
+  destId: string
+): Promise<DynamicVoyageResponse | null> {
+  const cache = await loadVoyageCache();
+  const key = `${originId}|${destId}`;
+  return (cache as any)[key] ?? null;
+}
 
 export async function fetchAvailableStations(): Promise<StationInfo[]> {
   try {
@@ -106,12 +128,33 @@ export async function fetchAvailableStations(): Promise<StationInfo[]> {
   }
 }
 
-export async function planDynamicVoyage(request: DynamicVoyageRequest): Promise<DynamicVoyageResponse> {
+export async function planDynamicVoyage(
+  request: DynamicVoyageRequest
+): Promise<DynamicVoyageResponse> {
+  // Cache-first: serve pre-computed routes for all preset station pairs
+  if (
+    request.origin_station_id &&
+    request.destination_station_id &&
+    !request.origin_coords &&
+    !request.destination_coords
+  ) {
+    const cached = await lookupCache(
+      request.origin_station_id,
+      request.destination_station_id
+    );
+    if (cached) {
+      console.info(
+        `[VoyageCache] HIT: ${request.origin_station_id} -> ${request.destination_station_id}`
+      );
+      return cached;
+    }
+    console.info('[VoyageCache] MISS -- falling through to backend');
+  }
+
+  // Fallback: live backend call (needed for custom coordinates)
   const res = await fetch('/api/v1/routes/plan-voyage', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request)
   });
 

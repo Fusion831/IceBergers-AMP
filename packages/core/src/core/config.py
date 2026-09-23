@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["*"]
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./amip_dev.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./data/db/amip_dev.db"
     DATABASE_TEST_URL: str = "sqlite+aiosqlite:///:memory:"
 
     # Redis / Celery
